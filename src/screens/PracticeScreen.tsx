@@ -171,6 +171,20 @@ export function PracticeScreen({
             </View>
           ) : null}
 
+          {level === 'A1' && !!turn.suggestedReply && (
+            <View style={styles.suggestion}>
+              <Text style={styles.suggestionTitle}>EJEMPLO DE RESPUESTA</Text>
+              <Text style={styles.suggestionText}>{turn.suggestedReply}</Text>
+              <Text style={styles.suggestionHelp}>Puedes leer esta frase y responder hablando.</Text>
+              <Pressable
+                onPress={() => setTyped(turn.suggestedReply || '')}
+                style={styles.useSuggestion}
+              >
+                <Text style={styles.useSuggestionText}>Usar este ejemplo</Text>
+              </Pressable>
+            </View>
+          )}
+
           {!!turn.tipEs && (
             <View style={styles.tip}>
               <Text style={styles.tipTitle}>Coach tip</Text>
@@ -211,6 +225,12 @@ const styles = StyleSheet.create({
   correctionTitle: { color: '#9A5A13', fontWeight: '900' },
   correctionText: { marginTop: 5, color: '#6F4A21', fontSize: 16, fontWeight: '700' },
   explanation: { marginTop: 6, color: '#7F684E', lineHeight: 20 },
+  suggestion: { marginTop: 16, padding: 16, borderRadius: 16, backgroundColor: '#EEF4FF', borderWidth: 1, borderColor: '#D7E4FF' },
+  suggestionTitle: { color: '#2F6FED', fontWeight: '900', fontSize: 11, letterSpacing: 1.1 },
+  suggestionText: { marginTop: 7, color: '#17324D', fontSize: 18, lineHeight: 25, fontWeight: '800' },
+  suggestionHelp: { marginTop: 6, color: '#667889', lineHeight: 19 },
+  useSuggestion: { marginTop: 12, alignSelf: 'flex-start', backgroundColor: '#2F6FED', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
+  useSuggestionText: { color: '#FFF', fontWeight: '900', fontSize: 12 },
   tip: { marginTop: 12, padding: 15, borderRadius: 16, backgroundColor: '#EAF7F1' },
   tipTitle: { color: '#277154', fontWeight: '900' },
   tipText: { marginTop: 5, color: '#3D6A59', lineHeight: 20 },

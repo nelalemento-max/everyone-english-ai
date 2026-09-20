@@ -16,6 +16,7 @@ export type ConversationTurn = {
   level: CefrLevel;
   newWords: NewWord[];
   audioBase64?: string;
+  suggestedReply?: string | null;
 };
 
 export type LearnerProfile = {

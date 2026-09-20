@@ -26,6 +26,7 @@ type TutorReply = {
   level: "A1" | "A2" | "B1";
   new_words: Array<{ word: string; meaning_es: string }>;
   topic: string;
+  suggested_reply: string | null;
 };
 
 let certCache: Record<string, string> | null = null;
@@ -335,6 +336,7 @@ function cleanTutorJson(text: string, fallbackLevel: string, fallbackTopic: stri
             .filter((item: any) => item.word)
         : [],
       topic: String(parsed.topic || fallbackTopic),
+      suggested_reply: parsed.suggested_reply ? String(parsed.suggested_reply) : null,
     };
   } catch {
     return {
@@ -345,6 +347,7 @@ function cleanTutorJson(text: string, fallbackLevel: string, fallbackTopic: stri
       level: (["A1", "A2", "B1"].includes(fallbackLevel) ? fallbackLevel : "A1") as any,
       new_words: [],
       topic: fallbackTopic,
+      suggested_reply: null,
     };
   }
 }
@@ -364,8 +367,10 @@ Rules:
 - explanation_es and tip_es are brief Spanish support.
 - If the learner uses Spanish because they do not know the English phrase, teach it and invite them to try it.
 - Never scold, grade, or make the learner feel tested.
+- For A1 learners, suggested_reply MUST contain one short, natural example answer the learner can say next, directly answering your final question. Keep it 3 to 10 simple words.
+- For A2 or B1, suggested_reply should normally be null unless the learner explicitly asks for an example.
 - Return strict JSON only:
-{"reply":"...","correction":null,"explanation_es":null,"tip_es":"...","level":"A1","new_words":[{"word":"...","meaning_es":"..."}],"topic":"..."}
+{"reply":"...","correction":null,"explanation_es":null,"tip_es":"...","level":"A1","new_words":[{"word":"...","meaning_es":"..."}],"topic":"...","suggested_reply":"I eat chicken and rice."}
 `;
 
 
@@ -380,6 +385,7 @@ const tutorResponseSchema = {
     "level",
     "new_words",
     "topic",
+    "suggested_reply",
   ],
   properties: {
     reply: { type: "string" },
@@ -401,6 +407,7 @@ const tutorResponseSchema = {
       },
     },
     topic: { type: "string" },
+    suggested_reply: { type: ["string", "null"] },
   },
 };
 
@@ -542,6 +549,7 @@ async function conversation(
       meaningEs: item.meaning_es,
     })),
     audioBase64: audio,
+    suggestedReply: tutor.level === "A1" ? tutor.suggested_reply : null,
   });
 }
 
