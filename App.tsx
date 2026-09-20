@@ -33,6 +33,8 @@ const initialProfile: LearnerProfile = {
 
 type Tab = 'home' | 'practice' | 'progress' | 'admin';
 
+const ADMIN_EMAIL = 'nelalemento@gmail.com';
+
 function timestampToMs(value: any): number {
   if (!value) return 0;
   if (typeof value === 'string') {
@@ -44,8 +46,26 @@ function timestampToMs(value: any): number {
   return 0;
 }
 
-function hasLearningAccess(profile: LearnerProfile) {
-  if (profile.role === 'admin') return true;
+function isAdminAccount(user: User | null, profile: LearnerProfile) {
+  return (
+    profile.role === 'admin' ||
+    user?.email?.trim().toLowerCase() === ADMIN_EMAIL
+  );
+}
+
+function normalizeProfileForUser(user: User, profile: LearnerProfile) {
+  if (user.email?.trim().toLowerCase() === ADMIN_EMAIL) {
+    return {
+      ...profile,
+      role: 'admin' as const,
+      subscriptionStatus: 'complimentary' as const,
+    };
+  }
+  return profile;
+}
+
+function hasLearningAccess(profile: LearnerProfile, user: User | null) {
+  if (isAdminAccount(user, profile)) return true;
   if (
     profile.subscriptionStatus === 'active' ||
     profile.subscriptionStatus === 'complimentary'
@@ -61,14 +81,17 @@ export default function App() {
   const [profile, setProfile] = useState<LearnerProfile>(initialProfile);
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
+  const [profileError, setProfileError] = useState('');
 
   const refreshProfile = useCallback(async () => {
     if (!auth?.currentUser) return;
     try {
       const next = await fetchUserProfile();
-      setProfile({ ...initialProfile, ...next });
-    } catch {
-      // A temporary network error should not log the user out.
+      const merged = { ...initialProfile, ...next } as LearnerProfile;
+      setProfile(normalizeProfileForUser(auth.currentUser, merged));
+      setProfileError('');
+    } catch (error: any) {
+      setProfileError(error?.message || 'No se pudo cargar tu perfil.');
     }
   }, []);
 
@@ -80,6 +103,7 @@ export default function App() {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
+      setProfileError('');
 
       if (!nextUser) {
         setProfile(initialProfile);
@@ -91,7 +115,20 @@ export default function App() {
       setReady(false);
       try {
         const next = await initializeUserProfile(nextUser.displayName || '');
-        setProfile({ ...initialProfile, ...next });
+        const merged = { ...initialProfile, ...next } as LearnerProfile;
+        setProfile(normalizeProfileForUser(nextUser, merged));
+      } catch (error: any) {
+        if (nextUser.email?.trim().toLowerCase() === ADMIN_EMAIL) {
+          setProfile(
+            normalizeProfileForUser(nextUser, {
+              ...initialProfile,
+              displayName: nextUser.displayName || 'Nelson',
+              email: nextUser.email || '',
+            }),
+          );
+        } else {
+          setProfileError(error?.message || 'No se pudo cargar tu perfil.');
+        }
       } finally {
         setReady(true);
       }
@@ -143,7 +180,28 @@ export default function App() {
     );
   }
 
-  if (!hasLearningAccess(profile)) {
+  if (profileError && !isAdminAccount(user, profile)) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F7FAFD" />
+        <View style={styles.center}>
+          <Text style={styles.setupTitle}>No pude cargar tu perfil</Text>
+          <Text style={styles.setupText}>{profileError}</Text>
+          <Pressable style={styles.retryButton} onPress={refreshProfile}>
+            <Text style={styles.retryText}>Reintentar</Text>
+          </Pressable>
+          <Pressable
+            style={styles.exitButton}
+            onPress={() => auth && signOut(auth)}
+          >
+            <Text style={styles.exitText}>Cerrar sesión</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!hasLearningAccess(profile, user)) {
     return (
       <SafeAreaView style={styles.safe}>
         <StatusBar barStyle="dark-content" backgroundColor="#F7FAFD" />
@@ -163,7 +221,7 @@ export default function App() {
         </View>
 
         <View style={styles.accountArea}>
-          {profile.role === 'admin' && (
+          {isAdminAccount(user, profile) && (
             <View style={styles.adminPill}>
               <Text style={styles.adminText}>ADMIN</Text>
             </View>
@@ -194,7 +252,7 @@ export default function App() {
           />
         )}
         {tab === 'progress' && <ProgressScreen profile={profile} />}
-        {tab === 'admin' && profile.role === 'admin' && <AdminScreen />}
+        {tab === 'admin' && isAdminAccount(user, profile) && <AdminScreen />}
       </View>
 
       <View style={styles.nav}>
@@ -219,7 +277,7 @@ export default function App() {
             setTab('progress');
           }}
         />
-        {profile.role === 'admin' && (
+        {isAdminAccount(user, profile) && (
           <NavButton
             active={tab === 'admin'}
             label="Admin"
@@ -330,4 +388,12 @@ const styles = StyleSheet.create({
   navIcon: { color: '#93A0AD', fontSize: 19, fontWeight: '800' },
   navLabel: { color: '#93A0AD', fontSize: 11, fontWeight: '800' },
   navActive: { color: '#2F6FED' },
+  retryButton: {
+    marginTop: 18,
+    backgroundColor: '#2F6FED',
+    borderRadius: 14,
+    paddingHorizontal: 22,
+    paddingVertical: 13,
+  },
+  retryText: { color: '#FFF', fontWeight: '900' },
 });
