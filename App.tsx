@@ -2,12 +2,17 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  initialWindowMetrics,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, firebaseConfigured } from './src/services/firebase';
 import { fetchUserProfile, initializeUserProfile } from './src/services/user';
@@ -77,6 +82,15 @@ function hasLearningAccess(profile: LearnerProfile, user: User | null) {
 }
 
 export default function App() {
+  return (
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <AppContent />
+    </SafeAreaProvider>
+  );
+}
+
+function AppContent() {
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('home');
   const [profile, setProfile] = useState<LearnerProfile>(initialProfile);
   const [user, setUser] = useState<User | null>(null);
@@ -149,7 +163,7 @@ export default function App() {
 
   if (!firebaseConfigured) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.center}>
           <Text style={styles.setupTitle}>Everyone English</Text>
           <Text style={styles.setupText}>
@@ -162,7 +176,7 @@ export default function App() {
 
   if (!ready) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.center}>
           <ActivityIndicator size="large" />
           <Text style={styles.loading}>Preparando tu inglés…</Text>
@@ -173,7 +187,7 @@ export default function App() {
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <StatusBar barStyle="dark-content" backgroundColor="#F7FAFD" />
         <AuthScreen />
       </SafeAreaView>
@@ -182,7 +196,7 @@ export default function App() {
 
   if (profileError && !isAdminAccount(user, profile)) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <StatusBar barStyle="dark-content" backgroundColor="#F7FAFD" />
         <View style={styles.center}>
           <Text style={styles.setupTitle}>No pude cargar tu perfil</Text>
@@ -203,7 +217,7 @@ export default function App() {
 
   if (!hasLearningAccess(profile, user)) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <StatusBar barStyle="dark-content" backgroundColor="#F7FAFD" />
         <AccessLockedScreen onSignOut={() => auth && signOut(auth)} />
       </SafeAreaView>
@@ -211,7 +225,7 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor="#F7FAFD" />
 
       <View style={styles.topbar}>
@@ -255,7 +269,12 @@ export default function App() {
         {tab === 'admin' && isAdminAccount(user, profile) && <AdminScreen />}
       </View>
 
-      <View style={styles.nav}>
+      <View
+        style={[
+          styles.nav,
+          { bottom: Math.max(10, insets.bottom > 0 ? 4 : 10) },
+        ]}
+      >
         <NavButton
           active={tab === 'home'}
           label="Home"
@@ -326,8 +345,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   topbar: {
-    minHeight: 66,
-    paddingHorizontal: 22,
+    minHeight: 62,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -345,7 +364,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '900',
   },
-  accountArea: { flexDirection: 'row', gap: 7, alignItems: 'center' },
+  accountArea: { flexDirection: 'row', gap: 5, alignItems: 'center', flexShrink: 1 },
   adminPill: {
     backgroundColor: '#EAF7F1',
     paddingHorizontal: 9,
@@ -364,10 +383,9 @@ const styles = StyleSheet.create({
   exitText: { color: '#7A8998', fontSize: 12, fontWeight: '800' },
   nav: {
     position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 14,
-    minHeight: 68,
+    left: 10,
+    right: 10,
+    minHeight: 64,
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     borderRadius: 22,

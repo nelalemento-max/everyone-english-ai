@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import {
   RecordingPresets,
@@ -30,6 +31,10 @@ export function PracticeScreen({
   level: CefrLevel;
   onLevelChange: (level: CefrLevel) => void;
 }) {
+  const { width, height } = useWindowDimensions();
+  const compact = width < 390 || height < 760;
+  const avatarSize = Math.max(150, Math.min(compact ? 175 : 210, width - 96));
+
   const recorder = useAudioRecorder(RecordingPresets.LOW_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
   const player = useAudioPlayer(null);
@@ -104,16 +109,23 @@ export function PracticeScreen({
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={[
+        styles.container,
+        compact && styles.containerCompact,
+      ]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
       <Text style={styles.eyebrow}>CONVERSATION</Text>
       <Text style={styles.title}>Talk to Emma</Text>
       <Text style={styles.status}>{statusText}</Text>
 
-      <View style={styles.avatarWrap}>
+      <View style={[styles.avatarWrap, compact && styles.avatarWrapCompact]}>
         <AiTutorAvatar
           listening={recorderState.isRecording}
           speaking={playerStatus.playing}
-          size={230}
+          size={avatarSize}
         />
       </View>
 
@@ -198,24 +210,26 @@ export function PracticeScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 22, paddingBottom: 120, backgroundColor: '#F7FAFD' },
+  container: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: 20, paddingBottom: 125, backgroundColor: '#F7FAFD' },
+  containerCompact: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 118 },
   eyebrow: { color: '#2F6FED', fontWeight: '900', letterSpacing: 2, fontSize: 12 },
-  title: { marginTop: 5, color: '#17324D', fontSize: 30, fontWeight: '900' },
+  title: { marginTop: 5, color: '#17324D', fontSize: 28, fontWeight: '900' },
   status: { marginTop: 5, color: '#68798A' },
-  avatarWrap: { alignItems: 'center', paddingVertical: 34 },
+  avatarWrap: { alignItems: 'center', paddingVertical: 22 },
+  avatarWrapCompact: { paddingVertical: 12 },
   topics: { gap: 8, paddingVertical: 8 },
   topic: { backgroundColor: '#FFF', borderColor: '#DFE8F2', borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999 },
   topicActive: { backgroundColor: '#17324D', borderColor: '#17324D' },
   topicText: { color: '#516579', fontWeight: '700' },
   topicTextActive: { color: '#FFF' },
-  mic: { marginTop: 18, backgroundColor: '#2F6FED', borderRadius: 20, minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  mic: { marginTop: 14, backgroundColor: '#2F6FED', borderRadius: 18, minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
   micRecording: { backgroundColor: '#D65757' },
   micDisabled: { opacity: 0.55 },
   micIcon: { color: '#FFF', fontSize: 20 },
   micText: { color: '#FFF', fontWeight: '900', fontSize: 17 },
   textRow: { marginTop: 12, flexDirection: 'row', gap: 8 },
-  input: { flex: 1, minHeight: 52, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#DFE8F2', borderRadius: 16, paddingHorizontal: 15, color: '#17324D' },
-  send: { backgroundColor: '#17324D', borderRadius: 16, paddingHorizontal: 18, justifyContent: 'center' },
+  input: { flex: 1, minWidth: 0, minHeight: 50, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#DFE8F2', borderRadius: 16, paddingHorizontal: 15, color: '#17324D' },
+  send: { backgroundColor: '#17324D', borderRadius: 16, paddingHorizontal: 14, justifyContent: 'center' },
   sendText: { color: '#FFF', fontWeight: '800' },
   conversationCard: { marginTop: 18, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2EAF3', borderRadius: 22, padding: 19 },
   label: { fontSize: 11, letterSpacing: 1.3, fontWeight: '900', color: '#8997A5' },

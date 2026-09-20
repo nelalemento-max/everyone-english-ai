@@ -1,15 +1,20 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatCard } from '../components/StatCard';
 import { LearnerProfile } from '../types';
 
 export function ProgressScreen({ profile }: { profile: LearnerProfile }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 390;
   const progress = profile.level === 'A1' ? 28 : profile.level === 'A2' ? 58 : 78;
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      contentContainerStyle={[styles.container, compact && styles.containerCompact]}
+      showsVerticalScrollIndicator={false}
+    >
       <Text style={styles.eyebrow}>YOUR PROGRESS</Text>
       <Text style={styles.title}>English that grows with you</Text>
-      <View style={styles.levelCard}>
+      <View style={[styles.levelCard, compact && styles.levelCardCompact]}>
         <View style={styles.levelCircle}><Text style={styles.level}>{profile.level}</Text></View>
         <View style={{ flex: 1 }}>
           <Text style={styles.levelTitle}>Current conversational level</Text>
@@ -31,11 +36,13 @@ export function ProgressScreen({ profile }: { profile: LearnerProfile }) {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 22, paddingBottom: 120, backgroundColor: '#F7FAFD', gap: 16 },
+  container: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: 20, paddingBottom: 125, backgroundColor: '#F7FAFD', gap: 16 },
+  containerCompact: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 118 },
   eyebrow: { color: '#2F6FED', fontWeight: '900', letterSpacing: 2, fontSize: 12 },
   title: { color: '#17324D', fontSize: 29, lineHeight: 35, fontWeight: '900' },
   levelCard: { flexDirection: 'row', gap: 18, alignItems: 'center', backgroundColor: '#FFF', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#E5EDF5' },
-  levelCircle: { width: 78, height: 78, borderRadius: 39, backgroundColor: '#2F6FED', alignItems: 'center', justifyContent: 'center' },
+  levelCardCompact: { alignItems: 'flex-start', gap: 12, padding: 16 },
+  levelCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#2F6FED', alignItems: 'center', justifyContent: 'center' },
   level: { color: '#FFF', fontSize: 26, fontWeight: '900' },
   levelTitle: { color: '#17324D', fontSize: 16, fontWeight: '900' },
   levelSub: { marginTop: 5, color: '#6C7B89', lineHeight: 19 },

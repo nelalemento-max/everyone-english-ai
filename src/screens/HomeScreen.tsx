@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { AiTutorAvatar } from '../components/AiTutorAvatar';
 import { StatCard } from '../components/StatCard';
 import { LearnerProfile } from '../types';
@@ -11,12 +11,19 @@ export function HomeScreen({
   profile: LearnerProfile;
   onPractice: () => void;
 }) {
+  const { width, height } = useWindowDimensions();
+  const compact = width < 390 || height < 760;
+  const avatarSize = Math.max(145, Math.min(compact ? 160 : 190, width - 120));
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      contentContainerStyle={[styles.container, compact && styles.containerCompact]}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.hero}>
         <View style={styles.heroText}>
           <Text style={styles.eyebrow}>EVERYONE ENGLISH</Text>
-          <Text style={styles.title}>Speak first. Learn naturally.</Text>
+          <Text style={[styles.title, compact && styles.titleCompact]}>Speak first. Learn naturally.</Text>
           <Text style={styles.subtitle}>
             No rigid lessons. Emma follows your level, your mistakes and what you actually want to talk about.
           </Text>
@@ -24,7 +31,7 @@ export function HomeScreen({
             <Text style={styles.primaryText}>Start talking</Text>
           </Pressable>
         </View>
-        <AiTutorAvatar listening={false} speaking={false} size={190} />
+        <AiTutorAvatar listening={false} speaking={false} size={avatarSize} />
       </View>
 
       <View style={styles.statsRow}>
@@ -51,17 +58,19 @@ export function HomeScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 22, paddingBottom: 120, gap: 18, backgroundColor: '#F7FAFD' },
+  container: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: 20, paddingBottom: 125, gap: 16, backgroundColor: '#F7FAFD' },
+  containerCompact: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 118 },
   hero: {
     borderRadius: 30,
-    padding: 24,
+    padding: 20,
     backgroundColor: '#EAF3FF',
     gap: 24,
     alignItems: 'center',
   },
   heroText: { width: '100%', maxWidth: 680 },
   eyebrow: { color: '#2F6FED', fontSize: 12, fontWeight: '900', letterSpacing: 2 },
-  title: { marginTop: 8, color: '#17324D', fontSize: 34, fontWeight: '900', lineHeight: 39 },
+  title: { marginTop: 8, color: '#17324D', fontSize: 32, fontWeight: '900', lineHeight: 37 },
+  titleCompact: { fontSize: 28, lineHeight: 33 },
   subtitle: { marginTop: 12, color: '#55697D', fontSize: 16, lineHeight: 24 },
   primary: { marginTop: 20, backgroundColor: '#2F6FED', paddingVertical: 15, paddingHorizontal: 22, borderRadius: 16, alignSelf: 'flex-start' },
   primaryText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
