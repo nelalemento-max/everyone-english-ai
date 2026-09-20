@@ -1,0 +1,217 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
+import { AiTutorAvatar } from '../components/AiTutorAvatar';
+import { playBase64Audio, sendConversationTurn } from '../services/conversation';
+import { CefrLevel, ConversationTurn } from '../types';
+
+const topics = ['My day', 'Work', 'Travel', 'Family', 'Business', 'Anything'];
+
+export function PracticeScreen({
+  level,
+  onLevelChange,
+}: {
+  level: CefrLevel;
+  onLevelChange: (level: CefrLevel) => void;
+}) {
+  const recorder = useAudioRecorder(RecordingPresets.LOW_QUALITY);
+  const recorderState = useAudioRecorderState(recorder);
+  const player = useAudioPlayer(null);
+  const playerStatus = useAudioPlayerStatus(player);
+
+  const [topic, setTopic] = useState('Anything');
+  const [busy, setBusy] = useState(false);
+  const [turn, setTurn] = useState<ConversationTurn | null>(null);
+  const [typed, setTyped] = useState('');
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true }).catch(() => null);
+  }, []);
+
+  const statusText = useMemo(() => {
+    if (recorderState.isRecording) return 'I’m listening. Speak naturally.';
+    if (busy) return 'Emma is thinking…';
+    if (playerStatus.playing) return 'Emma is speaking…';
+    return 'Tap the microphone and talk.';
+  }, [busy, playerStatus.playing, recorderState.isRecording]);
+
+  async function startRecording() {
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Microphone', 'Please allow microphone access to practice speaking.');
+        return;
+      }
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setStartedAt(Date.now());
+    } catch (error: any) {
+      Alert.alert('Microphone', error?.message || 'Could not start recording.');
+    }
+  }
+
+  async function stopAndSend() {
+    try {
+      await recorder.stop();
+      const uri = recorder.uri;
+      if (!uri) return;
+      const seconds = startedAt ? Math.max(1, Math.round((Date.now() - startedAt) / 1000)) : 0;
+      setStartedAt(null);
+      setBusy(true);
+      const response = await sendConversationTurn({ audioUri: uri, level, topic, seconds });
+      setTurn(response);
+      onLevelChange(response.level);
+      if (response.audioBase64) await playBase64Audio(player, response.audioBase64);
+    } catch (error: any) {
+      Alert.alert('Conversation', error?.message || 'The turn could not be processed.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendText() {
+    const text = typed.trim();
+    if (!text || busy) return;
+    try {
+      setBusy(true);
+      setTyped('');
+      const response = await sendConversationTurn({ text, level, topic, seconds: 0 });
+      setTurn(response);
+      onLevelChange(response.level);
+      if (response.audioBase64) await playBase64Audio(player, response.audioBase64);
+    } catch (error: any) {
+      Alert.alert('Conversation', error?.message || 'The message could not be sent.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <Text style={styles.eyebrow}>CONVERSATION</Text>
+      <Text style={styles.title}>Talk to Emma</Text>
+      <Text style={styles.status}>{statusText}</Text>
+
+      <View style={styles.avatarWrap}>
+        <AiTutorAvatar
+          listening={recorderState.isRecording}
+          speaking={playerStatus.playing}
+          size={230}
+        />
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topics}>
+        {topics.map((item) => (
+          <Pressable
+            key={item}
+            onPress={() => setTopic(item)}
+            style={[styles.topic, topic === item && styles.topicActive]}
+          >
+            <Text style={[styles.topicText, topic === item && styles.topicTextActive]}>{item}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      <Pressable
+        disabled={busy}
+        onPress={recorderState.isRecording ? stopAndSend : startRecording}
+        style={[
+          styles.mic,
+          recorderState.isRecording && styles.micRecording,
+          busy && styles.micDisabled,
+        ]}
+      >
+        <Text style={styles.micIcon}>{recorderState.isRecording ? '■' : '●'}</Text>
+        <Text style={styles.micText}>{recorderState.isRecording ? 'Stop & send' : 'Speak'}</Text>
+      </Pressable>
+
+      <View style={styles.textRow}>
+        <TextInput
+          value={typed}
+          onChangeText={setTyped}
+          placeholder="Or type what you want to say…"
+          placeholderTextColor="#9AA8B6"
+          style={styles.input}
+          onSubmitEditing={sendText}
+          returnKeyType="send"
+        />
+        <Pressable onPress={sendText} style={styles.send}><Text style={styles.sendText}>Send</Text></Pressable>
+      </View>
+
+      {turn && (
+        <View style={styles.conversationCard}>
+          <Text style={styles.label}>YOU SAID</Text>
+          <Text style={styles.userText}>{turn.transcript}</Text>
+
+          <Text style={[styles.label, { marginTop: 18 }]}>EMMA</Text>
+          <Text style={styles.reply}>{turn.reply}</Text>
+
+          {turn.correction ? (
+            <View style={styles.correction}>
+              <Text style={styles.correctionTitle}>A more natural way</Text>
+              <Text style={styles.correctionText}>{turn.correction}</Text>
+              {!!turn.explanationEs && <Text style={styles.explanation}>{turn.explanationEs}</Text>}
+            </View>
+          ) : null}
+
+          {!!turn.tipEs && (
+            <View style={styles.tip}>
+              <Text style={styles.tipTitle}>Coach tip</Text>
+              <Text style={styles.tipText}>{turn.tipEs}</Text>
+            </View>
+          )}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { padding: 22, paddingBottom: 120, backgroundColor: '#F7FAFD' },
+  eyebrow: { color: '#2F6FED', fontWeight: '900', letterSpacing: 2, fontSize: 12 },
+  title: { marginTop: 5, color: '#17324D', fontSize: 30, fontWeight: '900' },
+  status: { marginTop: 5, color: '#68798A' },
+  avatarWrap: { alignItems: 'center', paddingVertical: 34 },
+  topics: { gap: 8, paddingVertical: 8 },
+  topic: { backgroundColor: '#FFF', borderColor: '#DFE8F2', borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999 },
+  topicActive: { backgroundColor: '#17324D', borderColor: '#17324D' },
+  topicText: { color: '#516579', fontWeight: '700' },
+  topicTextActive: { color: '#FFF' },
+  mic: { marginTop: 18, backgroundColor: '#2F6FED', borderRadius: 20, minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  micRecording: { backgroundColor: '#D65757' },
+  micDisabled: { opacity: 0.55 },
+  micIcon: { color: '#FFF', fontSize: 20 },
+  micText: { color: '#FFF', fontWeight: '900', fontSize: 17 },
+  textRow: { marginTop: 12, flexDirection: 'row', gap: 8 },
+  input: { flex: 1, minHeight: 52, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#DFE8F2', borderRadius: 16, paddingHorizontal: 15, color: '#17324D' },
+  send: { backgroundColor: '#17324D', borderRadius: 16, paddingHorizontal: 18, justifyContent: 'center' },
+  sendText: { color: '#FFF', fontWeight: '800' },
+  conversationCard: { marginTop: 18, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2EAF3', borderRadius: 22, padding: 19 },
+  label: { fontSize: 11, letterSpacing: 1.3, fontWeight: '900', color: '#8997A5' },
+  userText: { marginTop: 6, color: '#42566A', fontSize: 16, lineHeight: 23 },
+  reply: { marginTop: 6, color: '#17324D', fontSize: 19, lineHeight: 27, fontWeight: '700' },
+  correction: { marginTop: 18, padding: 15, borderRadius: 16, backgroundColor: '#FFF5E8' },
+  correctionTitle: { color: '#9A5A13', fontWeight: '900' },
+  correctionText: { marginTop: 5, color: '#6F4A21', fontSize: 16, fontWeight: '700' },
+  explanation: { marginTop: 6, color: '#7F684E', lineHeight: 20 },
+  tip: { marginTop: 12, padding: 15, borderRadius: 16, backgroundColor: '#EAF7F1' },
+  tipTitle: { color: '#277154', fontWeight: '900' },
+  tipText: { marginTop: 5, color: '#3D6A59', lineHeight: 20 },
+});

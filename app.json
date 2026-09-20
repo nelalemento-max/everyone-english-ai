@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Everyone English",
+    "slug": "everyone-english-ai",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "scheme": "everyoneenglish",
+    "android": {
+      "package": "com.nelalemento.everyoneenglish",
+      "permissions": ["RECORD_AUDIO"]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Everyone English necesita el micrófono para practicar conversación en inglés.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
+        }
+      ]
+    ]
+  }
+}

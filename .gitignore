@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+android/.gradle/
+android/app/build/
+*.jks
+*.keystore
+.env
+.env.local
+functions/lib/
+functions/node_modules/
+.firebase/
+firebase-debug.log
+.DS_Store
