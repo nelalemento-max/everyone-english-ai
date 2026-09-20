@@ -368,6 +368,42 @@ Rules:
 {"reply":"...","correction":null,"explanation_es":null,"tip_es":"...","level":"A1","new_words":[{"word":"...","meaning_es":"..."}],"topic":"..."}
 `;
 
+
+const tutorResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "reply",
+    "correction",
+    "explanation_es",
+    "tip_es",
+    "level",
+    "new_words",
+    "topic",
+  ],
+  properties: {
+    reply: { type: "string" },
+    correction: { type: ["string", "null"] },
+    explanation_es: { type: ["string", "null"] },
+    tip_es: { type: "string" },
+    level: { type: "string", enum: ["A1", "A2", "B1"] },
+    new_words: {
+      type: "array",
+      maxItems: 3,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["word", "meaning_es"],
+        properties: {
+          word: { type: "string" },
+          meaning_es: { type: "string" },
+        },
+      },
+    },
+    topic: { type: "string" },
+  },
+};
+
 async function conversation(
   supabase: ReturnType<typeof adminClient>,
   profile: any,
@@ -448,10 +484,20 @@ async function conversation(
     .join("\n\n");
 
   const response = await openAiJson(apiKey, "responses", {
-    model: "gpt-5-mini",
+    model: "gpt-5.6-luna",
+    reasoning: { effort: "none" },
+    store: false,
     instructions: tutorInstructions,
     input: `Current estimated level: ${requestedLevel}\nPreferred topic: ${requestedTopic}\n\nRecent conversation:\n${recent || "(first turn)"}\n\nLearner now says:\n${transcript}`,
-    max_output_tokens: 420,
+    text: {
+      format: {
+        type: "json_schema",
+        name: "everyone_english_tutor_reply",
+        strict: true,
+        schema: tutorResponseSchema,
+      },
+    },
+    max_output_tokens: 500,
   });
 
   const tutor = cleanTutorJson(
