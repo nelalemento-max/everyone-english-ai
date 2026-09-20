@@ -137,6 +137,64 @@ async function synthesize(apiKey: string, text: string, level: string) {
   return Buffer.from(await response.arrayBuffer()).toString('base64');
 }
 
+
+export const adminSetUserAccess = onCall(
+  { region: REGION, cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Sign in is required.');
+    }
+
+    const callerRef = db.collection('users').doc(request.auth.uid);
+    const callerSnap = await callerRef.get();
+    const caller = callerSnap.data();
+
+    if (!caller || caller.role !== 'admin') {
+      throw new HttpsError('permission-denied', 'Administrator access is required.');
+    }
+
+    const targetUid =
+      typeof request.data?.targetUid === 'string'
+        ? request.data.targetUid.trim()
+        : '';
+
+    const subscriptionStatus =
+      typeof request.data?.subscriptionStatus === 'string'
+        ? request.data.subscriptionStatus
+        : '';
+
+    const allowedStatuses = ['trial', 'active', 'complimentary', 'blocked'];
+
+    if (!targetUid || !allowedStatuses.includes(subscriptionStatus)) {
+      throw new HttpsError('invalid-argument', 'Invalid user or access status.');
+    }
+
+    const targetRef = db.collection('users').doc(targetUid);
+    const targetSnap = await targetRef.get();
+
+    if (!targetSnap.exists) {
+      throw new HttpsError('not-found', 'User not found.');
+    }
+
+    const target = targetSnap.data() || {};
+    if (target.role === 'admin') {
+      throw new HttpsError('failed-precondition', 'Administrator access is managed separately.');
+    }
+
+    await targetRef.set(
+      {
+        subscriptionStatus,
+        accessUpdatedAt: FieldValue.serverTimestamp(),
+        accessUpdatedBy: request.auth.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    return { ok: true, targetUid, subscriptionStatus };
+  },
+);
+
 export const conversationTurn = onCall(
   {
     region: REGION,
