@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { httpsCallable } from 'firebase/functions';
 import { ConversationTurn } from '../types';
-import { ensureSignedIn, functions } from './firebase';
+import { auth, functions } from './firebase';
 
 async function webUriToBase64(uri: string): Promise<string> {
   const blob = await (await fetch(uri)).blob();
@@ -31,8 +31,9 @@ export async function sendConversationTurn(input: {
   topic: string;
   seconds?: number;
 }): Promise<ConversationTurn> {
-  if (!functions) throw new Error('Firebase todavía no está configurado.');
-  await ensureSignedIn();
+  if (!functions || !auth?.currentUser) {
+    throw new Error('Debes iniciar sesión para practicar.');
+  }
 
   const audioBase64 = input.audioUri
     ? await audioUriToBase64(input.audioUri)

@@ -1,4 +1,6 @@
 export type CefrLevel = 'A1' | 'A2' | 'B1';
+export type UserRole = 'student' | 'admin';
+export type SubscriptionStatus = 'trial' | 'active' | 'complimentary' | 'blocked';
 
 export type NewWord = {
   word: string;
@@ -19,6 +21,10 @@ export type ConversationTurn = {
 export type LearnerProfile = {
   level: CefrLevel;
   displayName: string;
+  email?: string;
+  role: UserRole;
+  subscriptionStatus: SubscriptionStatus;
+  trialEndsAt?: any;
   totalTurns: number;
   totalMinutes: number;
   streak: number;

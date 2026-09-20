@@ -6,7 +6,6 @@ import {
   getAuth,
   getReactNativePersistence,
   initializeAuth,
-  signInAnonymously,
 } from 'firebase/auth';
 import { Firestore, getFirestore } from 'firebase/firestore';
 import { Functions, getFunctions } from 'firebase/functions';
@@ -46,11 +45,4 @@ if (firebaseConfigured) {
     app,
     process.env.EXPO_PUBLIC_FIREBASE_FUNCTIONS_REGION || 'southamerica-east1',
   );
-}
-
-export async function ensureSignedIn() {
-  if (!auth) return null;
-  if (auth.currentUser) return auth.currentUser;
-  const credential = await signInAnonymously(auth);
-  return credential.user;
 }

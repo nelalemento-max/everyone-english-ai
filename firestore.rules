@@ -1,12 +1,25 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     match /users/{userId} {
-      allow read, create, update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if false;
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if false;
 
       match /turns/{turnId} {
-        allow read: if request.auth != null && request.auth.uid == userId;
+        allow read: if isOwner(userId) || isAdmin();
         allow write: if false;
       }
     }
