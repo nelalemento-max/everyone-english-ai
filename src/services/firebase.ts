@@ -1,12 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import {
-  Auth,
-  getAuth,
-  getReactNativePersistence,
-  initializeAuth,
-} from 'firebase/auth';
+import * as FirebaseAuth from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -19,20 +14,34 @@ const firebaseConfig = {
 
 export const firebaseConfigured = Object.values(firebaseConfig).every(Boolean);
 
-export let auth: Auth | null = null;
+export let auth: FirebaseAuth.Auth | null = null;
 
 if (firebaseConfigured) {
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
   if (Platform.OS === 'web') {
-    auth = getAuth(app);
+    auth = FirebaseAuth.getAuth(app);
   } else {
     try {
-      auth = initializeAuth(app, {
-        persistence: getReactNativePersistence(AsyncStorage),
-      });
+      // Firebase's React Native implementation exports this at runtime, but
+      // some Expo/Firebase 12 TypeScript resolutions omit it from the public
+      // type surface. Accessing it through the module keeps RN persistence
+      // without breaking the Expo app typecheck.
+      const getReactNativePersistence = (
+        FirebaseAuth as typeof FirebaseAuth & {
+          getReactNativePersistence?: (storage: typeof AsyncStorage) => FirebaseAuth.Persistence;
+        }
+      ).getReactNativePersistence;
+
+      if (!getReactNativePersistence) {
+        auth = FirebaseAuth.getAuth(app);
+      } else {
+        auth = FirebaseAuth.initializeAuth(app, {
+          persistence: getReactNativePersistence(AsyncStorage),
+        });
+      }
     } catch {
-      auth = getAuth(app);
+      auth = FirebaseAuth.getAuth(app);
     }
   }
 }

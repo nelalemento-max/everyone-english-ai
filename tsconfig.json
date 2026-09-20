@@ -4,5 +4,9 @@
     "strict": true,
     "noEmit": true,
     "baseUrl": "."
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "supabase/functions/**"
+  ]
 }
