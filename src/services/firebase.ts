@@ -7,8 +7,6 @@ import {
   getReactNativePersistence,
   initializeAuth,
 } from 'firebase/auth';
-import { Firestore, getFirestore } from 'firebase/firestore';
-import { Functions, getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -22,8 +20,6 @@ const firebaseConfig = {
 export const firebaseConfigured = Object.values(firebaseConfig).every(Boolean);
 
 export let auth: Auth | null = null;
-export let db: Firestore | null = null;
-export let functions: Functions | null = null;
 
 if (firebaseConfigured) {
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -39,10 +35,4 @@ if (firebaseConfigured) {
       auth = getAuth(app);
     }
   }
-
-  db = getFirestore(app);
-  functions = getFunctions(
-    app,
-    process.env.EXPO_PUBLIC_FIREBASE_FUNCTIONS_REGION || 'southamerica-east1',
-  );
 }

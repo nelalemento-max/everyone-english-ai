@@ -1,0 +1,4 @@
+project_id = "coddqwhoigpobomasrzs"
+
+[functions.everyone-english-api]
+verify_jwt = false

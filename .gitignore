@@ -7,8 +7,8 @@ android/app/build/
 *.keystore
 .env
 .env.local
-functions/lib/
-functions/node_modules/
+.supabase/
+supabase/functions/.env
 .firebase/
 firebase-debug.log
 .DS_Store

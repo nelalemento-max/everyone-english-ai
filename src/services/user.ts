@@ -1,9 +1,14 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from './firebase';
+import { callBackend } from './backend';
+import { LearnerProfile } from '../types';
 
 export async function initializeUserProfile(displayName?: string) {
-  if (!functions) throw new Error('Firebase todavía no está configurado.');
-  const call = httpsCallable(functions, 'initializeUserProfile');
-  const result = await call({ displayName: displayName || '' });
-  return result.data;
+  const result = await callBackend<{ profile: LearnerProfile }>('bootstrap', {
+    displayName: displayName || '',
+  });
+  return result.profile;
+}
+
+export async function fetchUserProfile() {
+  const result = await callBackend<{ profile: LearnerProfile }>('profile');
+  return result.profile;
 }

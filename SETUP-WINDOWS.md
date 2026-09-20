@@ -1,83 +1,50 @@
-# Puesta en marcha en Windows / Android Studio
+# Everyone English - Android Studio / Windows
 
-## A. Preparar el proyecto
+Trabajamos desde la Terminal de Android Studio.
 
-1. Clona o descarga el repositorio.
-2. Abre PowerShell dentro de la carpeta.
-3. Ejecuta:
+## 1. Actualizar código
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\setup-windows.ps1
+git pull
+npm install
 ```
 
-## B. Firebase
+## 2. Variables públicas locales
 
-En Firebase Console crea un proyecto llamado, por ejemplo, `everyone-english-ai`.
+El archivo `.env` debe contener la configuración pública de Firebase y esta línea:
 
-Activa:
-- Authentication -> Anonymous.
-- Firestore Database.
-- Functions.
-- Hosting.
-
-En Project settings -> Your apps, registra una **Web app** y copia sus datos en `.env`.
-
-En `.firebaserc` reemplaza `YOUR_FIREBASE_PROJECT_ID`.
-
-## C. Guardar la llave OpenAI
-
-No la pegues en el código ni en `.env`.
-
-```powershell
-firebase login
-firebase use TU_PROJECT_ID
-firebase functions:secrets:set OPENAI_API_KEY
+```
+EXPO_PUBLIC_SUPABASE_URL=https://coddqwhoigpobomasrzs.supabase.co
 ```
 
-Pega la llave sólo cuando la consola de Firebase la solicite.
+No guardes la llave OpenAI aquí.
 
-## D. Backend
+## 3. OpenAI
 
-```powershell
-firebase deploy --only firestore:rules,functions
-```
+La llave OpenAI se guarda como secreto de la Edge Function de Supabase, no dentro del APK ni de la Web.
 
-## E. Web / iPhone como PWA
-
-```powershell
-npm run build:web
-firebase deploy --only hosting
-```
-
-Firebase mostrará la URL `https://TU_PROJECT_ID.web.app`.
-
-En iPhone se abre esa URL en Safari y se usa **Compartir -> Añadir a pantalla de inicio**.
-
-## F. Android Studio
+## 4. Android
 
 ```powershell
 npm run prebuild:android
 ```
 
-Después abre en Android Studio la carpeta:
-
-```text
-android
-```
-
-Para probar con un teléfono conectado o emulador:
+Luego abre la carpeta `android` en Android Studio o ejecuta:
 
 ```powershell
 npm run android
 ```
 
-## G. Prueba inicial
+## 5. Web
 
-1. Entra a **Talk**.
-2. Elige `Anything`.
-3. Pulsa **Speak**.
-4. Di: `Hello, my name is Nelson. I want to practice English.`
-5. Pulsa **Stop & send**.
+```powershell
+npm run build:web
+npx firebase-tools deploy --only hosting --project everyone-english-ai
+```
 
-Emma debe responder por voz, mostrar el texto y guardar el turno en Firestore.
+## 6. Flujo de usuarios
+
+- Registro con correo y contraseña en Firebase Auth.
+- El backend Supabase crea el perfil y entrega 48 horas de prueba.
+- Al vencer, bloquea la IA.
+- El administrador puede marcar usuarios como Activo, Gratis o Bloqueado.

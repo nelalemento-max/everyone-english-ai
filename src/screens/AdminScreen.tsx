@@ -1,28 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
-import { db } from '../services/firebase';
-import { setUserAccess } from '../services/admin';
+import { AdminUser, listAdminUsers, setUserAccess } from '../services/admin';
 import { SubscriptionStatus } from '../types';
 
-type AdminUser = {
-  id: string;
-  displayName?: string;
-  email?: string;
-  role?: string;
-  subscriptionStatus?: SubscriptionStatus;
-  level?: string;
-  totalTurns?: number;
-  trialEndsAt?: any;
-};
-
-function trialLabel(value: any) {
+function trialLabel(value?: string | null) {
   if (!value) return '';
-  const ms =
-    typeof value?.toMillis === 'function'
-      ? value.toMillis()
-      : Number(value?.seconds || 0) * 1000;
-  if (!ms) return '';
+  const ms = new Date(value).getTime();
+  if (!Number.isFinite(ms)) return '';
   const remaining = ms - Date.now();
   if (remaining <= 0) return 'Prueba vencida';
   const hours = Math.ceil(remaining / 3_600_000);
@@ -31,29 +15,34 @@ function trialLabel(value: any) {
 
 export function AdminScreen() {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
   const [workingUid, setWorkingUid] = useState('');
 
+  async function loadUsers() {
+    try {
+      setLoading(true);
+      setUsers(await listAdminUsers());
+    } catch (error: any) {
+      Alert.alert('Administrador', error?.message || 'No se pudieron cargar los usuarios.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    if (!db) return;
-    const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(100));
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        setUsers(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as any) })));
-      },
-      (error) => Alert.alert('Administrador', error.message),
-    );
+    loadUsers();
   }, []);
 
   async function changeStatus(user: AdminUser, status: SubscriptionStatus) {
     if (user.role === 'admin') {
-      Alert.alert('Administrador', 'La cuenta administradora no necesita cambiar su suscripción.');
+      Alert.alert('Administrador', 'La cuenta administradora no necesita cambiar su acceso.');
       return;
     }
 
     try {
       setWorkingUid(user.id);
       await setUserAccess(user.id, status);
+      await loadUsers();
     } catch (error: any) {
       Alert.alert('Administrador', error?.message || 'No se pudo cambiar el acceso.');
     } finally {
@@ -68,6 +57,10 @@ export function AdminScreen() {
       <Text style={styles.subtitle}>
         Activa al cliente después del pago, deja cuentas internas como Gratis o bloquea un acceso.
       </Text>
+
+      <Pressable style={styles.refresh} onPress={loadUsers}>
+        <Text style={styles.refreshText}>{loading ? 'Actualizando…' : 'Actualizar lista'}</Text>
+      </Pressable>
 
       <View style={styles.summary}>
         <Text style={styles.summaryValue}>{users.length}</Text>
@@ -97,22 +90,9 @@ export function AdminScreen() {
 
             {user.role !== 'admin' && (
               <View style={styles.actions}>
-                <ActionButton
-                  label="Activo"
-                  disabled={busy}
-                  onPress={() => changeStatus(user, 'active')}
-                />
-                <ActionButton
-                  label="Gratis"
-                  disabled={busy}
-                  onPress={() => changeStatus(user, 'complimentary')}
-                />
-                <ActionButton
-                  label="Bloquear"
-                  disabled={busy}
-                  danger
-                  onPress={() => changeStatus(user, 'blocked')}
-                />
+                <ActionButton label="Activo" disabled={busy} onPress={() => changeStatus(user, 'active')} />
+                <ActionButton label="Gratis" disabled={busy} onPress={() => changeStatus(user, 'complimentary')} />
+                <ActionButton label="Bloquear" disabled={busy} danger onPress={() => changeStatus(user, 'blocked')} />
               </View>
             )}
           </View>
@@ -149,6 +129,8 @@ const styles = StyleSheet.create({
   eyebrow: { color: '#2F6FED', fontSize: 12, fontWeight: '900', letterSpacing: 2 },
   title: { color: '#17324D', fontSize: 29, fontWeight: '900' },
   subtitle: { color: '#667889', lineHeight: 21, marginBottom: 6 },
+  refresh: { alignSelf: 'flex-start', backgroundColor: '#17324D', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
+  refreshText: { color: '#FFF', fontSize: 12, fontWeight: '900' },
   summary: { flexDirection: 'row', alignItems: 'baseline', gap: 7, backgroundColor: '#EAF3FF', borderRadius: 18, padding: 16 },
   summaryValue: { color: '#17324D', fontSize: 25, fontWeight: '900' },
   summaryLabel: { color: '#587086', fontWeight: '700' },
