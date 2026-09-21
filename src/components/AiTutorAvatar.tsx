@@ -196,6 +196,8 @@ export function AiTutorAvatar({
           ]}
         />
 
+        <View style={[styles.hairHighlight, { width: size * 0.19, height: size * 0.42, left: -size * 0.045, top: size * 0.02 }]} />
+
         <View
           style={[
             styles.hairSide,
@@ -393,6 +395,7 @@ export function AiTutorAvatar({
             ]}
           >
             <View style={styles.lipHighlight} />
+            {!speaking && <View style={styles.smileLight} />}
           </Animated.View>
         </View>
       </Animated.View>
@@ -462,6 +465,13 @@ const styles = StyleSheet.create({
   hairBack: {
     position: 'absolute',
     backgroundColor: '#35251F',
+  },
+  hairHighlight: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    transform: [{ rotate: '12deg' }],
+    zIndex: 2,
   },
   hairSide: {
     position: 'absolute',
@@ -587,6 +597,13 @@ const styles = StyleSheet.create({
     height: 1.4,
     borderRadius: 2,
     backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+  smileLight: {
+    marginTop: 1,
+    width: '42%',
+    height: 2,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.32)',
   },
 
   thinkingDots: {
