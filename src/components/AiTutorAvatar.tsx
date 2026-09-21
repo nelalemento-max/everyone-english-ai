@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Image, StyleSheet, Text, View } from 'react-native';
-import { EMMA_AVATAR_URI } from '../assets/emmaAvatar';
+
+const emmaPortrait = require('../../assets/emma-avatar.jpg');
 
 export function AiTutorAvatar({
   listening,
@@ -114,7 +115,7 @@ export function AiTutorAvatar({
         ]}
       >
         <Image
-          source={{ uri: EMMA_AVATAR_URI }}
+          source={emmaPortrait}
           style={{
             width: size - 12,
             height: size - 12,
