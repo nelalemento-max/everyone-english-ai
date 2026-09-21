@@ -71,11 +71,10 @@ function normalizeProfileForUser(user: User, profile: LearnerProfile) {
 
 function hasLearningAccess(profile: LearnerProfile, user: User | null) {
   if (isAdminAccount(user, profile)) return true;
-  if (
-    profile.subscriptionStatus === 'active' ||
-    profile.subscriptionStatus === 'complimentary'
-  ) {
-    return true;
+  if (profile.subscriptionStatus === 'complimentary') return true;
+  if (profile.subscriptionStatus === 'active') {
+    if (!profile.subscriptionPaidUntil) return true;
+    return new Date(profile.subscriptionPaidUntil + 'T23:59:59').getTime() >= Date.now();
   }
   if (profile.subscriptionStatus !== 'trial') return false;
   return timestampToMs(profile.trialEndsAt) > Date.now();
