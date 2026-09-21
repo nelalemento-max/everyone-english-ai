@@ -280,9 +280,11 @@ async function synthesize(apiKey: string, text: string, level: string) {
       voice: "coral",
       input: text.slice(0, 1600),
       response_format: "mp3",
-      speed: level === "A1" ? 0.88 : level === "A2" ? 0.94 : 1,
+      speed: level === "A1" ? 0.82 : level === "A2" ? 0.92 : 1,
       instructions:
-        "Warm, patient English conversation coach. Clear pronunciation, friendly and natural, never robotic.",
+        level === "A1"
+          ? "Warm, patient English tutor for a beginner. Speak clearly and a little slowly, with natural short pauses. Use simple pronunciation and sound encouraging, not robotic."
+          : "Warm, patient English conversation coach. Clear pronunciation, friendly and natural, never robotic.",
     }),
   });
 
