@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
-import { ConversationTurn } from '../types';
+import { ConversationTurn, PracticeLanguage } from '../types';
 import { callBackend } from './backend';
 
 async function webUriToBase64(uri: string): Promise<string> {
@@ -28,6 +28,7 @@ export async function sendConversationTurn(input: {
   text?: string;
   level: string;
   topic: string;
+  practiceLanguage: PracticeLanguage;
   seconds?: number;
 }): Promise<ConversationTurn> {
   const audioBase64 = input.audioUri
@@ -46,6 +47,7 @@ export async function sendConversationTurn(input: {
     text: input.text,
     level: input.level,
     topic: input.topic,
+    practiceLanguage: input.practiceLanguage,
     seconds: input.seconds || 0,
   });
 }
