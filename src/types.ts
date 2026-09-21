@@ -35,4 +35,5 @@ export type LearnerProfile = {
   vocabularyCount: number;
   lastTopic: string;
   lastPracticeLanguage?: PracticeLanguage;
+  subscriptionPaidUntil?: string | null;
 };
