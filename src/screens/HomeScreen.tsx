@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { AiTutorAvatar } from '../components/AiTutorAvatar';
+import { LanguageFlag } from '../components/LanguageFlag';
 import { StatCard } from '../components/StatCard';
 import { LearnerProfile, PracticeLanguage } from '../types';
 
@@ -29,9 +30,9 @@ export function HomeScreen({
           </Text>
           <Text style={styles.languagePrompt}>Elige qué idioma quieres practicar hoy</Text>
           <View style={styles.languageGrid}>
-            <LanguageButton flag="🇪🇸" label="Español" caption="Practicar español" onPress={() => onPractice('es')} />
-            <LanguageButton flag="🇬🇧" label="English" caption="Practice English" onPress={() => onPractice('en')} />
-            <LanguageButton flag="🇫🇷" label="Français" caption="Pratiquer le français" onPress={() => onPractice('fr')} />
+            <LanguageButton code="es" label="Español" caption="Practicar español" onPress={() => onPractice('es')} />
+            <LanguageButton code="en" label="English" caption="Practice English" onPress={() => onPractice('en')} />
+            <LanguageButton code="fr" label="Français" caption="Pratiquer le français" onPress={() => onPractice('fr')} />
           </View>
         </View>
         <AiTutorAvatar listening={false} speaking={false} thinking={false} size={avatarSize} />
@@ -62,19 +63,19 @@ export function HomeScreen({
 
 
 function LanguageButton({
-  flag,
+  code,
   label,
   caption,
   onPress,
 }: {
-  flag: string;
+  code: 'es' | 'en' | 'fr';
   label: string;
   caption: string;
   onPress: () => void;
 }) {
   return (
     <Pressable style={styles.languageButton} onPress={onPress}>
-      <Text style={styles.languageFlag}>{flag}</Text>
+      <LanguageFlag code={code} />
       <View style={{ flex: 1 }}>
         <Text style={styles.languageLabel}>{label}</Text>
         <Text style={styles.languageCaption}>{caption}</Text>
@@ -102,7 +103,6 @@ const styles = StyleSheet.create({
   languagePrompt: { marginTop: 20, color: '#17324D', fontWeight: '900', fontSize: 15 },
   languageGrid: { marginTop: 10, width: '100%', gap: 9 },
   languageButton: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#DCE7F4', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12 },
-  languageFlag: { fontSize: 24 },
   languageLabel: { color: '#17324D', fontWeight: '900', fontSize: 15 },
   languageCaption: { marginTop: 2, color: '#738496', fontSize: 11 },
   languageArrow: { color: '#2F6FED', fontSize: 26, fontWeight: '700' },
