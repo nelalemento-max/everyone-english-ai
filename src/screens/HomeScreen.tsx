@@ -31,7 +31,7 @@ export function HomeScreen({
             <Text style={styles.primaryText}>Start talking</Text>
           </Pressable>
         </View>
-        <AiTutorAvatar listening={false} speaking={false} size={avatarSize} />
+        <AiTutorAvatar listening={false} speaking={false} thinking={false} size={avatarSize} />
       </View>
 
       <View style={styles.statsRow}>

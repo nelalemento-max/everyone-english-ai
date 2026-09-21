@@ -125,6 +125,7 @@ export function PracticeScreen({
         <AiTutorAvatar
           listening={recorderState.isRecording}
           speaking={playerStatus.playing}
+          thinking={busy && !playerStatus.playing}
           size={avatarSize}
         />
       </View>
@@ -174,6 +175,19 @@ export function PracticeScreen({
 
           <Text style={[styles.label, { marginTop: 18 }]}>EMMA</Text>
           <Text style={styles.reply}>{turn.reply}</Text>
+
+          {!!turn.audioBase64 && (
+            <Pressable
+              disabled={playerStatus.playing}
+              onPress={() => playBase64Audio(player, turn.audioBase64 || '')}
+              style={[styles.listenAgain, playerStatus.playing && styles.listenAgainDisabled]}
+            >
+              <Text style={styles.listenAgainIcon}>▶</Text>
+              <Text style={styles.listenAgainText}>
+                {playerStatus.playing ? 'Emma is speaking…' : 'Listen again'}
+              </Text>
+            </Pressable>
+          )}
 
           {turn.correction ? (
             <View style={styles.correction}>
@@ -235,6 +249,10 @@ const styles = StyleSheet.create({
   label: { fontSize: 11, letterSpacing: 1.3, fontWeight: '900', color: '#8997A5' },
   userText: { marginTop: 6, color: '#42566A', fontSize: 16, lineHeight: 23 },
   reply: { marginTop: 6, color: '#17324D', fontSize: 19, lineHeight: 27, fontWeight: '700' },
+  listenAgain: { marginTop: 12, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#EEF4FF', borderRadius: 14, paddingHorizontal: 13, paddingVertical: 9 },
+  listenAgainDisabled: { opacity: 0.55 },
+  listenAgainIcon: { color: '#2F6FED', fontSize: 11, fontWeight: '900' },
+  listenAgainText: { color: '#2F6FED', fontWeight: '900', fontSize: 13 },
   correction: { marginTop: 18, padding: 15, borderRadius: 16, backgroundColor: '#FFF5E8' },
   correctionTitle: { color: '#9A5A13', fontWeight: '900' },
   correctionText: { marginTop: 5, color: '#6F4A21', fontSize: 16, fontWeight: '700' },
