@@ -13,7 +13,7 @@ export function LanguageFlag({
   if (code === 'es') {
     return (
       <View style={[styles.flag, { width, height }]}>
-        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#AA151B' }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#AA151B' }]} />
         <View
           style={{
             position: 'absolute',
