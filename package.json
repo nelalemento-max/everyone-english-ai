@@ -11,7 +11,7 @@
     "build:web": "expo export --platform web",
     "firebase:deploy": "npm run build:web && firebase deploy",
     "typecheck": "tsc --noEmit",
-    "android:release": "expo run:android --variant release",
+    "android:release": "expo run:android --variant release --no-bundler",
     "build:android:apk": "cd android && gradlew.bat assembleRelease",
     "deploy:web": "npm run build:web && npx firebase-tools deploy --only hosting --project everyone-english-ai"
   },
