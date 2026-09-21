@@ -241,7 +241,12 @@ async function ensureProfile(
 
 function hasAccess(profile: any) {
   if (profile?.role === "admin") return true;
-  if (["active", "complimentary"].includes(profile?.subscription_status)) return true;
+  if (profile?.subscription_status === "complimentary") return true;
+  if (profile?.subscription_status === "active") {
+    if (!profile?.subscription_paid_until) return true;
+    const paidUntil = new Date(String(profile.subscription_paid_until) + "T23:59:59Z").getTime();
+    return paidUntil >= Date.now();
+  }
   if (profile?.subscription_status !== "trial") return false;
   return new Date(profile.trial_ends_at).getTime() > Date.now();
 }
@@ -260,6 +265,7 @@ function publicProfile(profile: any) {
     vocabularyCount: Number(profile.vocabulary_count ?? 0),
     lastTopic: profile.last_topic ?? "Anything",
     lastPracticeLanguage: profile.last_practice_language ?? "en",
+    subscriptionPaidUntil: profile.subscription_paid_until ?? null,
   };
 }
 
@@ -730,6 +736,9 @@ async function buildAdminAnalytics(supabase: ReturnType<typeof adminClient>) {
     pricingMarkup: Number(settingsRow?.pricing_markup ?? 4),
     safetyBufferPercent: Number(settingsRow?.safety_buffer_percent ?? 25),
     normalTurnsPerDay: Number(settingsRow?.normal_turns_per_day ?? 25),
+    defaultMonthlyPriceBob: Number(settingsRow?.default_monthly_price_bob ?? 50),
+    firstSaleCommissionBob: Number(settingsRow?.first_sale_commission_bob ?? 20),
+    renewalCommissionBob: Number(settingsRow?.renewal_commission_bob ?? 5),
   };
 
   const stats = new Map<string, any>();
@@ -919,6 +928,179 @@ async function buildAdminAnalytics(supabase: ReturnType<typeof adminClient>) {
   };
 }
 
+
+async function buildAdminSalesOverview(
+  supabase: ReturnType<typeof adminClient>,
+) {
+  const [
+    { data: settingsRow, error: settingsError },
+    { data: agents, error: agentsError },
+    { data: users, error: usersError },
+    { data: payments, error: paymentsError },
+    { data: commissions, error: commissionsError },
+  ] = await Promise.all([
+    supabase
+      .from("business_settings")
+      .select("default_monthly_price_bob, first_sale_commission_bob, renewal_commission_bob")
+      .eq("id", 1)
+      .maybeSingle(),
+    supabase
+      .from("sales_agents")
+      .select("*")
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("app_users")
+      .select("firebase_uid, display_name, email, sales_agent_id"),
+    supabase
+      .from("customer_payments")
+      .select("*")
+      .order("paid_at", { ascending: false })
+      .limit(300),
+    supabase
+      .from("sales_commissions")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(300),
+  ]);
+
+  if (settingsError) throw settingsError;
+  if (agentsError) throw agentsError;
+  if (usersError) throw usersError;
+  if (paymentsError) throw paymentsError;
+  if (commissionsError) throw commissionsError;
+
+  const settings = {
+    defaultMonthlyPriceBob: Number(settingsRow?.default_monthly_price_bob ?? 50),
+    firstSaleCommissionBob: Number(settingsRow?.first_sale_commission_bob ?? 20),
+    renewalCommissionBob: Number(settingsRow?.renewal_commission_bob ?? 5),
+  };
+
+  const userMap = new Map<string, any>();
+  for (const user of users ?? []) userMap.set(user.firebase_uid, user);
+
+  const agentMap = new Map<string, any>();
+  for (const agent of agents ?? []) agentMap.set(agent.id, agent);
+
+  const agentStats = new Map<string, any>();
+  for (const agent of agents ?? []) {
+    agentStats.set(agent.id, {
+      id: agent.id,
+      name: agent.name,
+      phone: agent.phone || "",
+      active: Boolean(agent.active),
+      firstSaleCommissionBob:
+        agent.first_sale_commission_bob == null
+          ? null
+          : Number(agent.first_sale_commission_bob),
+      renewalCommissionBob:
+        agent.renewal_commission_bob == null
+          ? null
+          : Number(agent.renewal_commission_bob),
+      note: agent.note || "",
+      customerCount: 0,
+      salesCount: 0,
+      revenueBob: 0,
+      pendingCommissionBob: 0,
+      paidCommissionBob: 0,
+    });
+  }
+
+  for (const user of users ?? []) {
+    if (user.sales_agent_id && agentStats.has(user.sales_agent_id)) {
+      agentStats.get(user.sales_agent_id).customerCount += 1;
+    }
+  }
+
+  for (const payment of payments ?? []) {
+    if (payment.sales_agent_id && agentStats.has(payment.sales_agent_id)) {
+      const row = agentStats.get(payment.sales_agent_id);
+      row.salesCount += 1;
+      row.revenueBob += Number(payment.amount_bob || 0);
+    }
+  }
+
+  for (const commission of commissions ?? []) {
+    if (!agentStats.has(commission.sales_agent_id)) continue;
+    const row = agentStats.get(commission.sales_agent_id);
+    if (commission.status === "pending") {
+      row.pendingCommissionBob += Number(commission.commission_bob || 0);
+    }
+    if (commission.status === "paid") {
+      row.paidCommissionBob += Number(commission.commission_bob || 0);
+    }
+  }
+
+  const normalizedPayments = (payments ?? []).map((payment: any) => {
+    const user = userMap.get(payment.firebase_uid);
+    const agent = payment.sales_agent_id
+      ? agentMap.get(payment.sales_agent_id)
+      : null;
+    return {
+      id: payment.id,
+      firebaseUid: payment.firebase_uid,
+      customerName: user?.display_name || user?.email || "Sin nombre",
+      salesAgentId: payment.sales_agent_id ?? null,
+      salesAgentName: agent?.name ?? null,
+      billingMonth: payment.billing_month,
+      amountBob: Number(payment.amount_bob || 0),
+      paidAt: payment.paid_at,
+      note: payment.note || "",
+    };
+  });
+
+  const normalizedCommissions = (commissions ?? []).map((commission: any) => {
+    const user = userMap.get(commission.firebase_uid);
+    const agent = agentMap.get(commission.sales_agent_id);
+    return {
+      id: commission.id,
+      paymentId: commission.payment_id,
+      salesAgentId: commission.sales_agent_id,
+      salesAgentName: agent?.name || "Vendedor",
+      firebaseUid: commission.firebase_uid,
+      customerName: user?.display_name || user?.email || "Sin nombre",
+      commissionType: commission.commission_type,
+      billingMonth: commission.billing_month,
+      customerPaymentBob: Number(commission.customer_payment_bob || 0),
+      commissionBob: Number(commission.commission_bob || 0),
+      status: commission.status,
+      paidAt: commission.paid_at,
+      createdAt: commission.created_at,
+    };
+  });
+
+  const revenueBob = normalizedPayments.reduce(
+    (sum: number, item: any) => sum + item.amountBob,
+    0,
+  );
+  const pendingCommissionBob = normalizedCommissions
+    .filter((item: any) => item.status === "pending")
+    .reduce((sum: number, item: any) => sum + item.commissionBob, 0);
+  const paidCommissionBob = normalizedCommissions
+    .filter((item: any) => item.status === "paid")
+    .reduce((sum: number, item: any) => sum + item.commissionBob, 0);
+
+  return {
+    settings,
+    summary: {
+      revenueBob,
+      pendingCommissionBob,
+      paidCommissionBob,
+      netAfterCommissionsBob:
+        revenueBob - pendingCommissionBob - paidCommissionBob,
+      paymentsCount: normalizedPayments.length,
+    },
+    agents: Array.from(agentStats.values()),
+    payments: normalizedPayments,
+    commissions: normalizedCommissions,
+  };
+}
+
+function monthEndFromBillingMonth(billingMonth: string) {
+  const [year, month] = billingMonth.slice(0, 7).split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -964,12 +1146,18 @@ Deno.serve(async (req: Request) => {
       const pricingMarkup = Number(body.pricingMarkup ?? 4);
       const safetyBufferPercent = Number(body.safetyBufferPercent ?? 25);
       const normalTurnsPerDay = Number(body.normalTurnsPerDay ?? 25);
+      const defaultMonthlyPriceBob = Number(body.defaultMonthlyPriceBob ?? 50);
+      const firstSaleCommissionBob = Number(body.firstSaleCommissionBob ?? 20);
+      const renewalCommissionBob = Number(body.renewalCommissionBob ?? 5);
 
       if (
         (exchangeRate !== null && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) ||
         !Number.isFinite(pricingMarkup) || pricingMarkup < 1 || pricingMarkup > 20 ||
         !Number.isFinite(safetyBufferPercent) || safetyBufferPercent < 0 || safetyBufferPercent > 500 ||
-        !Number.isFinite(normalTurnsPerDay) || normalTurnsPerDay < 1 || normalTurnsPerDay > 500
+        !Number.isFinite(normalTurnsPerDay) || normalTurnsPerDay < 1 || normalTurnsPerDay > 500 ||
+        !Number.isFinite(defaultMonthlyPriceBob) || defaultMonthlyPriceBob <= 0 ||
+        !Number.isFinite(firstSaleCommissionBob) || firstSaleCommissionBob < 0 ||
+        !Number.isFinite(renewalCommissionBob) || renewalCommissionBob < 0
       ) {
         return json({ error: "invalid_business_settings" }, 400);
       }
@@ -982,6 +1170,9 @@ Deno.serve(async (req: Request) => {
           pricing_markup: pricingMarkup,
           safety_buffer_percent: safetyBufferPercent,
           normal_turns_per_day: Math.round(normalTurnsPerDay),
+          default_monthly_price_bob: defaultMonthlyPriceBob,
+          first_sale_commission_bob: firstSaleCommissionBob,
+          renewal_commission_bob: renewalCommissionBob,
           updated_at: new Date().toISOString(),
           updated_by: profile.firebase_uid,
         }, { onConflict: "id" });
@@ -1065,6 +1256,246 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true });
     }
 
+    if (action === "adminSalesOverview") {
+      if (profile.role !== "admin") return json({ error: "forbidden" }, 403);
+      return json({ sales: await buildAdminSalesOverview(supabase) });
+    }
+
+    if (action === "adminCreateSalesAgent") {
+      if (profile.role !== "admin") return json({ error: "forbidden" }, 403);
+
+      const name = typeof body.name === "string" ? body.name.trim().slice(0, 100) : "";
+      const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 50) : "";
+      const note = typeof body.note === "string" ? body.note.trim().slice(0, 250) : "";
+      const firstRaw = body.firstSaleCommissionBob;
+      const renewalRaw = body.renewalCommissionBob;
+      const firstSaleCommissionBob =
+        firstRaw === null || firstRaw === "" || firstRaw === undefined
+          ? null
+          : Number(firstRaw);
+      const renewalCommissionBob =
+        renewalRaw === null || renewalRaw === "" || renewalRaw === undefined
+          ? null
+          : Number(renewalRaw);
+
+      if (
+        !name ||
+        (firstSaleCommissionBob !== null &&
+          (!Number.isFinite(firstSaleCommissionBob) || firstSaleCommissionBob < 0)) ||
+        (renewalCommissionBob !== null &&
+          (!Number.isFinite(renewalCommissionBob) || renewalCommissionBob < 0))
+      ) {
+        return json({ error: "invalid_sales_agent" }, 400);
+      }
+
+      const { data, error } = await supabase
+        .from("sales_agents")
+        .insert({
+          name,
+          phone,
+          note,
+          first_sale_commission_bob: firstSaleCommissionBob,
+          renewal_commission_bob: renewalCommissionBob,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+
+      return json({ ok: true, salesAgentId: data.id });
+    }
+
+    if (action === "adminToggleSalesAgent") {
+      if (profile.role !== "admin") return json({ error: "forbidden" }, 403);
+
+      const salesAgentId =
+        typeof body.salesAgentId === "string" ? body.salesAgentId.trim() : "";
+      const active = Boolean(body.active);
+      if (!salesAgentId) return json({ error: "invalid_sales_agent" }, 400);
+
+      const { error } = await supabase
+        .from("sales_agents")
+        .update({ active, updated_at: new Date().toISOString() })
+        .eq("id", salesAgentId);
+      if (error) throw error;
+
+      return json({ ok: true });
+    }
+
+    if (action === "adminAssignSalesAgent") {
+      if (profile.role !== "admin") return json({ error: "forbidden" }, 403);
+
+      const targetUid = typeof body.targetUid === "string" ? body.targetUid.trim() : "";
+      const salesAgentId =
+        body.salesAgentId === null || body.salesAgentId === ""
+          ? null
+          : String(body.salesAgentId || "").trim();
+
+      if (!targetUid) return json({ error: "invalid_assignment" }, 400);
+
+      if (salesAgentId) {
+        const { data: agent, error: agentError } = await supabase
+          .from("sales_agents")
+          .select("id, active")
+          .eq("id", salesAgentId)
+          .maybeSingle();
+        if (agentError) throw agentError;
+        if (!agent || !agent.active) {
+          return json({ error: "sales_agent_not_available" }, 409);
+        }
+      }
+
+      const { error } = await supabase
+        .from("app_users")
+        .update({
+          sales_agent_id: salesAgentId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("firebase_uid", targetUid);
+      if (error) throw error;
+
+      return json({ ok: true });
+    }
+
+    if (action === "adminRegisterMonthlyPayment") {
+      if (profile.role !== "admin") return json({ error: "forbidden" }, 403);
+
+      const targetUid = typeof body.targetUid === "string" ? body.targetUid.trim() : "";
+      const { data: settingsRow, error: settingsError } = await supabase
+        .from("business_settings")
+        .select("default_monthly_price_bob, first_sale_commission_bob, renewal_commission_bob")
+        .eq("id", 1)
+        .maybeSingle();
+      if (settingsError) throw settingsError;
+
+      const amountBob = Number(
+        body.amountBob ?? settingsRow?.default_monthly_price_bob ?? 50,
+      );
+      const billingMonth =
+        typeof body.billingMonth === "string" &&
+        /^\d{4}-\d{2}(-01)?$/.test(body.billingMonth)
+          ? body.billingMonth.slice(0, 7) + "-01"
+          : new Date().toISOString().slice(0, 7) + "-01";
+      const note = typeof body.note === "string" ? body.note.trim().slice(0, 250) : "";
+
+      if (!targetUid || !Number.isFinite(amountBob) || amountBob <= 0) {
+        return json({ error: "invalid_payment" }, 400);
+      }
+
+      const { data: target, error: targetError } = await supabase
+        .from("app_users")
+        .select("firebase_uid, role, sales_agent_id")
+        .eq("firebase_uid", targetUid)
+        .maybeSingle();
+      if (targetError) throw targetError;
+      if (!target) return json({ error: "user_not_found" }, 404);
+      if (target.role === "admin") {
+        return json({ error: "cannot_bill_admin" }, 409);
+      }
+
+      const { count: previousPayments, error: countError } = await supabase
+        .from("customer_payments")
+        .select("id", { count: "exact", head: true })
+        .eq("firebase_uid", targetUid);
+      if (countError) throw countError;
+
+      const { data: payment, error: paymentError } = await supabase
+        .from("customer_payments")
+        .insert({
+          firebase_uid: targetUid,
+          sales_agent_id: target.sales_agent_id,
+          billing_month: billingMonth,
+          amount_bob: amountBob,
+          payment_method: "manual",
+          note,
+          registered_by: profile.firebase_uid,
+        })
+        .select("id")
+        .single();
+
+      if (paymentError) {
+        if (String(paymentError.code) === "23505") {
+          return json({ error: "payment_already_registered" }, 409);
+        }
+        throw paymentError;
+      }
+
+      if (target.sales_agent_id) {
+        const { data: agent, error: agentError } = await supabase
+          .from("sales_agents")
+          .select("first_sale_commission_bob, renewal_commission_bob")
+          .eq("id", target.sales_agent_id)
+          .maybeSingle();
+        if (agentError) throw agentError;
+
+        const firstSale = Number(previousPayments || 0) === 0;
+        const commissionBob = firstSale
+          ? Number(
+              agent?.first_sale_commission_bob ??
+                settingsRow?.first_sale_commission_bob ??
+                20,
+            )
+          : Number(
+              agent?.renewal_commission_bob ??
+                settingsRow?.renewal_commission_bob ??
+                5,
+            );
+
+        if (commissionBob > 0) {
+          const { error: commissionError } = await supabase
+            .from("sales_commissions")
+            .insert({
+              payment_id: payment.id,
+              sales_agent_id: target.sales_agent_id,
+              firebase_uid: targetUid,
+              commission_type: firstSale ? "first_sale" : "renewal",
+              billing_month: billingMonth,
+              customer_payment_bob: amountBob,
+              commission_bob: commissionBob,
+              status: "pending",
+            });
+          if (commissionError) throw commissionError;
+        }
+      }
+
+      const { error: userUpdateError } = await supabase
+        .from("app_users")
+        .update({
+          subscription_status: "active",
+          subscription_paid_until: monthEndFromBillingMonth(billingMonth),
+          access_updated_at: new Date().toISOString(),
+          access_updated_by: profile.firebase_uid,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("firebase_uid", targetUid);
+      if (userUpdateError) throw userUpdateError;
+
+      return json({
+        ok: true,
+        paymentId: payment.id,
+        subscriptionPaidUntil: monthEndFromBillingMonth(billingMonth),
+      });
+    }
+
+    if (action === "adminMarkCommissionPaid") {
+      if (profile.role !== "admin") return json({ error: "forbidden" }, 403);
+
+      const commissionId =
+        typeof body.commissionId === "string" ? body.commissionId.trim() : "";
+      if (!commissionId) return json({ error: "invalid_commission" }, 400);
+
+      const { error } = await supabase
+        .from("sales_commissions")
+        .update({
+          status: "paid",
+          paid_at: new Date().toISOString(),
+        })
+        .eq("id", commissionId)
+        .eq("status", "pending");
+      if (error) throw error;
+
+      return json({ ok: true });
+    }
+
     if (action === "adminList") {
       if (profile.role !== "admin") {
         return json({ error: "forbidden" }, 403);
@@ -1094,6 +1525,8 @@ Deno.serve(async (req: Request) => {
               : Number(row.monthly_price_override_usd),
           monthlyPriceNote: row.monthly_price_note || "",
           lastPracticeLanguage: row.last_practice_language || "en",
+          salesAgentId: row.sales_agent_id ?? null,
+          subscriptionPaidUntil: row.subscription_paid_until ?? null,
         })),
       });
     }
