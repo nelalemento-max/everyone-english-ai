@@ -20,6 +20,7 @@ import {
   updateBusinessSettings,
 } from '../services/admin';
 import { SubscriptionStatus } from '../types';
+import { SalesAdminPanel } from '../components/SalesAdminPanel';
 
 function trialLabel(value?: string | null) {
   if (!value) return '';
@@ -62,6 +63,9 @@ export function AdminScreen() {
   const [markup, setMarkup] = useState('4');
   const [buffer, setBuffer] = useState('25');
   const [normalTurns, setNormalTurns] = useState('25');
+  const [defaultMonthlyPriceBob, setDefaultMonthlyPriceBob] = useState('50');
+  const [firstSaleCommissionBob, setFirstSaleCommissionBob] = useState('20');
+  const [renewalCommissionBob, setRenewalCommissionBob] = useState('5');
 
   const [investmentUsd, setInvestmentUsd] = useState('');
   const [investmentNote, setInvestmentNote] = useState('');
@@ -78,6 +82,9 @@ export function AdminScreen() {
     setMarkup(String(next.settings.pricingMarkup));
     setBuffer(String(next.settings.safetyBufferPercent));
     setNormalTurns(String(next.settings.normalTurnsPerDay));
+    setDefaultMonthlyPriceBob(String(next.settings.defaultMonthlyPriceBob ?? 50));
+    setFirstSaleCommissionBob(String(next.settings.firstSaleCommissionBob ?? 20));
+    setRenewalCommissionBob(String(next.settings.renewalCommissionBob ?? 5));
 
     const drafts: Record<string, string> = {};
     for (const item of next.perUser) {
@@ -132,12 +139,18 @@ export function AdminScreen() {
       const nextMarkup = Number(markup.replace(',', '.'));
       const nextBuffer = Number(buffer.replace(',', '.'));
       const nextTurns = Number(normalTurns.replace(',', '.'));
+      const nextDefaultMonthlyPriceBob = Number(defaultMonthlyPriceBob.replace(',', '.'));
+      const nextFirstSaleCommissionBob = Number(firstSaleCommissionBob.replace(',', '.'));
+      const nextRenewalCommissionBob = Number(renewalCommissionBob.replace(',', '.'));
 
       if (
         (rate !== null && (!Number.isFinite(rate) || rate <= 0)) ||
         !Number.isFinite(nextMarkup) ||
         !Number.isFinite(nextBuffer) ||
-        !Number.isFinite(nextTurns)
+        !Number.isFinite(nextTurns) ||
+        !Number.isFinite(nextDefaultMonthlyPriceBob) ||
+        !Number.isFinite(nextFirstSaleCommissionBob) ||
+        !Number.isFinite(nextRenewalCommissionBob)
       ) {
         Alert.alert('Configuración', 'Revisa los valores ingresados.');
         return;
@@ -149,6 +162,9 @@ export function AdminScreen() {
         pricingMarkup: nextMarkup,
         safetyBufferPercent: nextBuffer,
         normalTurnsPerDay: nextTurns,
+        defaultMonthlyPriceBob: nextDefaultMonthlyPriceBob,
+        firstSaleCommissionBob: nextFirstSaleCommissionBob,
+        renewalCommissionBob: nextRenewalCommissionBob,
       });
       await loadData();
       Alert.alert('Configuración', 'Valores actualizados.');
@@ -249,10 +265,30 @@ export function AdminScreen() {
               onChangeText={setNormalTurns}
               placeholder="25"
             />
+            <Field
+              label="Precio mensual base (Bs)"
+              value={defaultMonthlyPriceBob}
+              onChangeText={setDefaultMonthlyPriceBob}
+              placeholder="50"
+            />
+            <Field
+              label="Comisión primera venta (Bs)"
+              value={firstSaleCommissionBob}
+              onChangeText={setFirstSaleCommissionBob}
+              placeholder="20"
+            />
+            <Field
+              label="Comisión renovación (Bs)"
+              value={renewalCommissionBob}
+              onChangeText={setRenewalCommissionBob}
+              placeholder="5"
+            />
             <Pressable style={styles.primaryAction} onPress={saveBusinessSettings}>
               <Text style={styles.primaryActionText}>Guardar configuración</Text>
             </Pressable>
           </View>
+
+          <SalesAdminPanel users={users} />
 
           <Text style={styles.sectionTitle}>Costos IA y precio de referencia</Text>
           <Text style={styles.sectionIntro}>
