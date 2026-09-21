@@ -637,18 +637,57 @@ async function conversation(
 
 
 async function buildAdminAnalytics(supabase: ReturnType<typeof adminClient>) {
-  const [{ data: users, error: usersError }, { data: turns, error: turnsError }] =
-    await Promise.all([
-      supabase.from("app_users")
-        .select("firebase_uid, display_name, role, subscription_status")
-        .limit(500),
-      supabase.from("conversation_turns")
-        .select("firebase_uid, seconds, ai_cost_usd, transcribe_cost_usd, llm_cost_usd, tts_cost_usd, cost_estimated, created_at")
-        .order("created_at", { ascending: false })
-        .limit(10000),
-    ]);
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const daysInMonth = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  const elapsedDays = Math.max(1, now.getUTCDate());
+
+  const [
+    { data: users, error: usersError },
+    { data: turns, error: turnsError },
+    { data: settingsRow, error: settingsError },
+    { data: investments, error: investmentsError },
+  ] = await Promise.all([
+    supabase
+      .from("app_users")
+      .select(
+        "firebase_uid, display_name, role, subscription_status, monthly_price_override_usd, monthly_price_note",
+      )
+      .limit(500),
+    supabase
+      .from("conversation_turns")
+      .select(
+        "firebase_uid, seconds, ai_cost_usd, transcribe_cost_usd, llm_cost_usd, tts_cost_usd, practice_language, created_at",
+      )
+      .order("created_at", { ascending: false })
+      .limit(10000),
+    supabase
+      .from("business_settings")
+      .select("*")
+      .eq("id", 1)
+      .maybeSingle(),
+    supabase
+      .from("ai_investments")
+      .select("*")
+      .order("purchased_at", { ascending: false })
+      .limit(100),
+  ]);
+
   if (usersError) throw usersError;
   if (turnsError) throw turnsError;
+  if (settingsError) throw settingsError;
+  if (investmentsError) throw investmentsError;
+
+  const settings = {
+    exchangeRateBobPerUsd: settingsRow?.exchange_rate_bob_per_usd == null
+      ? null
+      : Number(settingsRow.exchange_rate_bob_per_usd),
+    pricingMarkup: Number(settingsRow?.pricing_markup ?? 4),
+    safetyBufferPercent: Number(settingsRow?.safety_buffer_percent ?? 25),
+    normalTurnsPerDay: Number(settingsRow?.normal_turns_per_day ?? 25),
+  };
 
   const stats = new Map<string, any>();
   for (const user of users ?? []) {
@@ -657,23 +696,63 @@ async function buildAdminAnalytics(supabase: ReturnType<typeof adminClient>) {
       displayName: user.display_name || "Sin nombre",
       role: user.role,
       subscriptionStatus: user.subscription_status,
+      monthlyPriceOverrideUsd:
+        user.monthly_price_override_usd == null
+          ? null
+          : Number(user.monthly_price_override_usd),
+      monthlyPriceNote: user.monthly_price_note || "",
       turns: 0,
       speakingSeconds: 0,
       aiCostUsd: 0,
+      currentMonthTurns: 0,
+      currentMonthAiCostUsd: 0,
       activeDays: new Set<string>(),
+      currentMonthActiveDays: new Set<string>(),
+      languages: {
+        en: { turns: 0, costUsd: 0 },
+        es: { turns: 0, costUsd: 0 },
+        fr: { turns: 0, costUsd: 0 },
+      },
     });
   }
 
   let transcribeUsd = 0;
   let llmUsd = 0;
   let ttsUsd = 0;
+  const languageTotals = {
+    en: { turns: 0, costUsd: 0 },
+    es: { turns: 0, costUsd: 0 },
+    fr: { turns: 0, costUsd: 0 },
+  };
+
   for (const turn of turns ?? []) {
     const row = stats.get(turn.firebase_uid);
     if (!row) continue;
+
+    const cost = Number(turn.ai_cost_usd || 0);
+    const language = ["en", "es", "fr"].includes(turn.practice_language)
+      ? turn.practice_language
+      : "en";
+    const createdAt = new Date(turn.created_at);
+
     row.turns += 1;
     row.speakingSeconds += Number(turn.seconds || 0);
-    row.aiCostUsd += Number(turn.ai_cost_usd || 0);
-    if (turn.created_at) row.activeDays.add(String(turn.created_at).slice(0, 10));
+    row.aiCostUsd += cost;
+    row.languages[language].turns += 1;
+    row.languages[language].costUsd += cost;
+    languageTotals[language as "en" | "es" | "fr"].turns += 1;
+    languageTotals[language as "en" | "es" | "fr"].costUsd += cost;
+
+    if (turn.created_at) {
+      row.activeDays.add(String(turn.created_at).slice(0, 10));
+    }
+
+    if (createdAt >= monthStart && createdAt <= now) {
+      row.currentMonthTurns += 1;
+      row.currentMonthAiCostUsd += cost;
+      row.currentMonthActiveDays.add(String(turn.created_at).slice(0, 10));
+    }
+
     transcribeUsd += Number(turn.transcribe_cost_usd || 0);
     llmUsd += Number(turn.llm_cost_usd || 0);
     ttsUsd += Number(turn.tts_cost_usd || 0);
@@ -683,6 +762,19 @@ async function buildAdminAnalytics(supabase: ReturnType<typeof adminClient>) {
     .filter((row) => row.turns > 0)
     .map((row) => {
       const avgCostPerTurnUsd = row.turns ? row.aiCostUsd / row.turns : 0;
+      const projectedMonthlyAiCostUsd =
+        row.currentMonthAiCostUsd > 0
+          ? (row.currentMonthAiCostUsd / elapsedDays) * daysInMonth
+          : avgCostPerTurnUsd * settings.normalTurnsPerDay * daysInMonth;
+
+      const suggestedMonthlyPriceUsd =
+        projectedMonthlyAiCostUsd *
+        (1 + settings.safetyBufferPercent / 100) *
+        settings.pricingMarkup;
+
+      const effectiveMonthlyPriceUsd =
+        row.monthlyPriceOverrideUsd ?? suggestedMonthlyPriceUsd;
+
       return {
         id: row.id,
         displayName: row.displayName,
@@ -692,38 +784,95 @@ async function buildAdminAnalytics(supabase: ReturnType<typeof adminClient>) {
         speakingMinutes: row.speakingSeconds / 60,
         aiCostUsd: row.aiCostUsd,
         avgCostPerTurnUsd,
-        projectedNormalMonthlyUsd: avgCostPerTurnUsd * 25 * 30,
+        currentMonthTurns: row.currentMonthTurns,
+        currentMonthAiCostUsd: row.currentMonthAiCostUsd,
+        projectedMonthlyAiCostUsd,
+        suggestedMonthlyPriceUsd,
+        monthlyPriceOverrideUsd: row.monthlyPriceOverrideUsd,
+        monthlyPriceNote: row.monthlyPriceNote,
+        effectiveMonthlyPriceUsd,
+        effectiveMonthlyPriceBob:
+          settings.exchangeRateBobPerUsd == null
+            ? null
+            : effectiveMonthlyPriceUsd * settings.exchangeRateBobPerUsd,
         activeDays: row.activeDays.size,
+        currentMonthActiveDays: row.currentMonthActiveDays.size,
+        languages: row.languages,
       };
     })
-    .sort((a, b) => b.aiCostUsd - a.aiCostUsd);
+    .sort((a, b) => b.currentMonthAiCostUsd - a.currentMonthAiCostUsd);
 
   const totalTurns = perUser.reduce((sum, row) => sum + row.turns, 0);
   const totalAiCostUsd = perUser.reduce((sum, row) => sum + row.aiCostUsd, 0);
+  const currentMonthAiCostUsd = perUser.reduce(
+    (sum, row) => sum + row.currentMonthAiCostUsd,
+    0,
+  );
   const averageCostPerTurnUsd = totalTurns ? totalAiCostUsd / totalTurns : 0;
-  const lightMonthlyUsd = averageCostPerTurnUsd * 10 * 30;
-  const normalMonthlyUsd = averageCostPerTurnUsd * 25 * 30;
-  const intensiveMonthlyUsd = averageCostPerTurnUsd * 50 * 30;
+  const lightMonthlyUsd = averageCostPerTurnUsd * 10 * daysInMonth;
+  const normalMonthlyUsd =
+    averageCostPerTurnUsd * settings.normalTurnsPerDay * daysInMonth;
+  const intensiveMonthlyUsd = averageCostPerTurnUsd * 50 * daysInMonth;
+  const referenceMonthlyPriceUsd =
+    normalMonthlyUsd *
+    (1 + settings.safetyBufferPercent / 100) *
+    settings.pricingMarkup;
+
+  const normalizedInvestments = (investments ?? []).map((item: any) => ({
+    id: item.id,
+    provider: item.provider,
+    amountUsd: Number(item.amount_usd || 0),
+    exchangeRateBobPerUsd:
+      item.exchange_rate_bob_per_usd == null
+        ? null
+        : Number(item.exchange_rate_bob_per_usd),
+    amountBob: item.amount_bob == null ? null : Number(item.amount_bob),
+    purchasedAt: item.purchased_at,
+    note: item.note || "",
+  }));
+
+  const totalInvestedUsd = normalizedInvestments.reduce(
+    (sum, item) => sum + item.amountUsd,
+    0,
+  );
+  const totalInvestedBob = normalizedInvestments.reduce(
+    (sum, item) => sum + Number(item.amountBob || 0),
+    0,
+  );
 
   return {
+    month: monthStart.toISOString().slice(0, 7),
     sampleUsers: perUser.length,
     totalTurns,
     totalAiCostUsd,
+    currentMonthAiCostUsd,
     averageCostPerTurnUsd,
-    averageCostPerUserObservedUsd: perUser.length ? totalAiCostUsd / perUser.length : 0,
+    averageCostPerUserObservedUsd: perUser.length
+      ? totalAiCostUsd / perUser.length
+      : 0,
     scenarios: {
       lightMonthlyUsd,
       normalMonthlyUsd,
       intensiveMonthlyUsd,
     },
-    referenceMonthlyPriceUsd: normalMonthlyUsd * 4,
-    budget100UsersUsd: normalMonthlyUsd * 100 * 1.25,
-    safetyBufferPercent: 25,
-    referenceMarkup: 4,
+    referenceMonthlyPriceUsd,
+    budget100UsersUsd:
+      normalMonthlyUsd * 100 * (1 + settings.safetyBufferPercent / 100),
+    safetyBufferPercent: settings.safetyBufferPercent,
+    referenceMarkup: settings.pricingMarkup,
+    settings,
+    investments: normalizedInvestments,
+    investmentSummary: {
+      totalInvestedUsd,
+      totalInvestedBob,
+      estimatedRemainingUsd: totalInvestedUsd - totalAiCostUsd,
+    },
     breakdown: { transcribeUsd, llmUsd, ttsUsd },
+    languageTotals,
     perUser,
     rateVersion: AI_COST_RATES.rateVersion,
-    note: "Estimación de costo variable de IA. TTS se atribuye por duración estimada; no incluye impuestos, pasarela de pago, soporte, marketing ni otros costos del negocio.",
+    note:
+      "Los tres idiomas comparten la misma suscripción y el mismo presupuesto de IA. El precio sugerido se recalcula según uso, tipo de cambio, margen y colchón configurados por el administrador.",
   };
 }
 
