@@ -14,6 +14,8 @@ export type AdminUser = {
   monthlyPriceOverrideUsd?: number | null;
   monthlyPriceNote?: string;
   lastPracticeLanguage?: 'en' | 'es' | 'fr';
+  salesAgentId?: string | null;
+  subscriptionPaidUntil?: string | null;
 };
 
 export type AdminLanguageUsage = {
@@ -79,6 +81,9 @@ export type AdminAnalytics = {
     pricingMarkup: number;
     safetyBufferPercent: number;
     normalTurnsPerDay: number;
+    defaultMonthlyPriceBob?: number;
+    firstSaleCommissionBob?: number;
+    renewalCommissionBob?: number;
   };
   investments: AdminInvestment[];
   investmentSummary: {
@@ -101,6 +106,67 @@ export type AdminAnalytics = {
   note: string;
 };
 
+export type SalesAgent = {
+  id: string;
+  name: string;
+  phone: string;
+  active: boolean;
+  firstSaleCommissionBob?: number | null;
+  renewalCommissionBob?: number | null;
+  note?: string;
+  customerCount: number;
+  salesCount: number;
+  revenueBob: number;
+  pendingCommissionBob: number;
+  paidCommissionBob: number;
+};
+
+export type SalesPayment = {
+  id: string;
+  firebaseUid: string;
+  customerName: string;
+  salesAgentId?: string | null;
+  salesAgentName?: string | null;
+  billingMonth: string;
+  amountBob: number;
+  paidAt: string;
+  note: string;
+};
+
+export type SalesCommission = {
+  id: string;
+  paymentId: string;
+  salesAgentId: string;
+  salesAgentName: string;
+  firebaseUid: string;
+  customerName: string;
+  commissionType: 'first_sale' | 'renewal';
+  billingMonth: string;
+  customerPaymentBob: number;
+  commissionBob: number;
+  status: 'pending' | 'paid' | 'cancelled';
+  paidAt?: string | null;
+  createdAt: string;
+};
+
+export type AdminSalesOverview = {
+  settings: {
+    defaultMonthlyPriceBob: number;
+    firstSaleCommissionBob: number;
+    renewalCommissionBob: number;
+  };
+  summary: {
+    revenueBob: number;
+    pendingCommissionBob: number;
+    paidCommissionBob: number;
+    netAfterCommissionsBob: number;
+    paymentsCount: number;
+  };
+  agents: SalesAgent[];
+  payments: SalesPayment[];
+  commissions: SalesCommission[];
+};
+
 export async function listAdminUsers() {
   const result = await callBackend<{ users: AdminUser[] }>('adminList');
   return result.users;
@@ -109,6 +175,11 @@ export async function listAdminUsers() {
 export async function getAdminAnalytics() {
   const result = await callBackend<{ analytics: AdminAnalytics }>('adminAnalytics');
   return result.analytics;
+}
+
+export async function getAdminSalesOverview() {
+  const result = await callBackend<{ sales: AdminSalesOverview }>('adminSalesOverview');
+  return result.sales;
 }
 
 export async function setUserAccess(
@@ -126,6 +197,9 @@ export async function updateBusinessSettings(input: {
   pricingMarkup: number;
   safetyBufferPercent: number;
   normalTurnsPerDay: number;
+  defaultMonthlyPriceBob?: number;
+  firstSaleCommissionBob?: number;
+  renewalCommissionBob?: number;
 }) {
   return callBackend('adminUpdateBusinessSettings', input);
 }
@@ -150,4 +224,38 @@ export async function setUserMonthlyPrice(
     monthlyPriceOverrideUsd,
     note,
   });
+}
+
+export async function createSalesAgent(input: {
+  name: string;
+  phone?: string;
+  firstSaleCommissionBob?: number | null;
+  renewalCommissionBob?: number | null;
+  note?: string;
+}) {
+  return callBackend('adminCreateSalesAgent', input);
+}
+
+export async function toggleSalesAgent(salesAgentId: string, active: boolean) {
+  return callBackend('adminToggleSalesAgent', { salesAgentId, active });
+}
+
+export async function assignSalesAgent(
+  targetUid: string,
+  salesAgentId: string | null,
+) {
+  return callBackend('adminAssignSalesAgent', { targetUid, salesAgentId });
+}
+
+export async function registerMonthlyPayment(input: {
+  targetUid: string;
+  amountBob?: number;
+  billingMonth?: string;
+  note?: string;
+}) {
+  return callBackend('adminRegisterMonthlyPayment', input);
+}
+
+export async function markCommissionPaid(commissionId: string) {
+  return callBackend('adminMarkCommissionPaid', { commissionId });
 }
