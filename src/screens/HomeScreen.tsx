@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { AiTutorAvatar } from '../components/AiTutorAvatar';
 import { LanguageFlag } from '../components/LanguageFlag';
 import { StatCard } from '../components/StatCard';
@@ -23,6 +23,24 @@ export function HomeScreen({
     >
       <View style={styles.hero}>
         <View style={styles.heroText}>
+          {Platform.OS === 'web' && (
+            <View style={styles.webBrand}>
+              <Image
+                source={require('../../assets/everyone-english-icon.png')}
+                style={styles.webBrandIcon}
+                resizeMode="contain"
+              />
+              <View style={styles.webBrandWords}>
+                <Text style={styles.webBrandEveryone}>Everyone</Text>
+                <View style={styles.webBrandBottomRow}>
+                  <Text style={styles.webBrandEnglish}>English</Text>
+                  <View style={styles.webBrandAi}>
+                    <Text style={styles.webBrandAiText}>AI</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
           <Text style={styles.eyebrow}>EVERYONE ENGLISH</Text>
           <Text style={[styles.title, compact && styles.titleCompact]}>Speak first. Learn naturally.</Text>
           <Text style={styles.subtitle}>
@@ -96,6 +114,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroText: { width: '100%', maxWidth: 680 },
+  webBrand: {
+    width: '100%',
+    maxWidth: 520,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 16,
+  },
+  webBrandIcon: {
+    width: 78,
+    height: 78,
+  },
+  webBrandWords: {
+    flexShrink: 1,
+  },
+  webBrandEveryone: {
+    color: '#15489F',
+    fontSize: 31,
+    lineHeight: 33,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+  webBrandBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: -2,
+  },
+  webBrandEnglish: {
+    color: '#1597F2',
+    fontSize: 31,
+    lineHeight: 34,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+  webBrandAi: {
+    backgroundColor: '#1576DA',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  webBrandAiText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
   eyebrow: { color: '#2F6FED', fontSize: 12, fontWeight: '900', letterSpacing: 2 },
   title: { marginTop: 8, color: '#17324D', fontSize: 32, fontWeight: '900', lineHeight: 37 },
   titleCompact: { fontSize: 28, lineHeight: 33 },

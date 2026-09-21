@@ -9,11 +9,18 @@
     "scheme": "everyoneenglish",
     "android": {
       "package": "com.nelalemento.everyoneenglish",
-      "permissions": ["RECORD_AUDIO"]
+      "permissions": [
+        "RECORD_AUDIO"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/everyone-english-icon.png",
+        "backgroundColor": "#EAF3FF"
+      }
     },
     "web": {
       "bundler": "metro",
-      "output": "single"
+      "output": "single",
+      "favicon": "./assets/everyone-english-icon.png"
     },
     "plugins": [
       [
@@ -25,6 +32,7 @@
           "enableBackgroundPlayback": false
         }
       ]
-    ]
+    ],
+    "icon": "./assets/everyone-english-icon.png"
   }
 }
