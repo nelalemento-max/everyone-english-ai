@@ -17,6 +17,7 @@ export type ConversationTurn = {
   newWords: NewWord[];
   audioBase64?: string;
   suggestedReply?: string | null;
+  topic?: string;
 };
 
 export type LearnerProfile = {
