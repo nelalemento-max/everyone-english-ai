@@ -20,15 +20,17 @@ import {
 } from 'expo-audio';
 import { AiTutorAvatar } from '../components/AiTutorAvatar';
 import { playBase64Audio, sendConversationTurn } from '../services/conversation';
-import { CefrLevel, ConversationTurn } from '../types';
+import { CefrLevel, ConversationTurn, PracticeLanguage } from '../types';
 
 const topics = ['My day', 'Work', 'Travel', 'Family', 'Business', 'Food', 'Hobbies', 'Shopping', 'Plans', 'Anything'];
 
 export function PracticeScreen({
   level,
+  practiceLanguage,
   onLevelChange,
 }: {
   level: CefrLevel;
+  practiceLanguage: PracticeLanguage;
   onLevelChange: (level: CefrLevel) => void;
 }) {
   const { width, height } = useWindowDimensions();
@@ -105,7 +107,7 @@ export function PracticeScreen({
       const seconds = startedAt ? Math.max(1, Math.round((Date.now() - startedAt) / 1000)) : 0;
       setStartedAt(null);
       setBusy(true);
-      const response = await sendConversationTurn({ audioUri: uri, level, topic, seconds });
+      const response = await sendConversationTurn({ audioUri: uri, level, topic, practiceLanguage, seconds });
       applyTutorResponse(response);
       if (response.audioBase64) await playBase64Audio(player, response.audioBase64);
     } catch (error: any) {
@@ -121,7 +123,7 @@ export function PracticeScreen({
     try {
       setBusy(true);
       setTyped('');
-      const response = await sendConversationTurn({ text, level, topic, seconds: 0 });
+      const response = await sendConversationTurn({ text, level, topic, practiceLanguage, seconds: 0 });
       applyTutorResponse(response);
       if (response.audioBase64) await playBase64Audio(player, response.audioBase64);
     } catch (error: any) {
@@ -142,6 +144,9 @@ export function PracticeScreen({
     >
       <Text style={styles.eyebrow}>CONVERSATION</Text>
       <Text style={styles.title}>Talk to Emma</Text>
+      <Text style={styles.languageLine}>
+        {practiceLanguage === 'es' ? '🇪🇸 Practicando Español' : practiceLanguage === 'fr' ? '🇫🇷 Pratiquant le français' : '🇬🇧 Practicing English'}
+      </Text>
       <Text style={styles.status}>{statusText}</Text>
 
       <View style={[styles.avatarWrap, compact && styles.avatarWrapCompact]}>
@@ -270,6 +275,7 @@ const styles = StyleSheet.create({
   eyebrow: { color: '#2F6FED', fontWeight: '900', letterSpacing: 2, fontSize: 12 },
   title: { marginTop: 5, color: '#17324D', fontSize: 28, fontWeight: '900' },
   status: { marginTop: 5, color: '#68798A' },
+  languageLine: { marginTop: 5, color: '#2F6FED', fontWeight: '900', fontSize: 12 },
   avatarWrap: { alignItems: 'center', paddingVertical: 22 },
   avatarWrapCompact: { paddingVertical: 12 },
   topics: { gap: 8, paddingVertical: 8 },

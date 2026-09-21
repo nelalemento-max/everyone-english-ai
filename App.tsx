@@ -22,7 +22,7 @@ import { ProgressScreen } from './src/screens/ProgressScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { AccessLockedScreen } from './src/screens/AccessLockedScreen';
 import { AdminScreen } from './src/screens/AdminScreen';
-import { CefrLevel, LearnerProfile } from './src/types';
+import { CefrLevel, LearnerProfile, PracticeLanguage } from './src/types';
 
 const initialProfile: LearnerProfile = {
   level: 'A1',
@@ -96,13 +96,16 @@ function AppContent() {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [profileError, setProfileError] = useState('');
+  const [practiceLanguage, setPracticeLanguage] = useState<PracticeLanguage>('en');
 
   const refreshProfile = useCallback(async () => {
     if (!auth?.currentUser) return;
     try {
       const next = await fetchUserProfile();
       const merged = { ...initialProfile, ...next } as LearnerProfile;
-      setProfile(normalizeProfileForUser(auth.currentUser, merged));
+      const normalized = normalizeProfileForUser(auth.currentUser, merged);
+      setProfile(normalized);
+      if (normalized.lastPracticeLanguage) setPracticeLanguage(normalized.lastPracticeLanguage);
       setProfileError('');
     } catch (error: any) {
       setProfileError(error?.message || 'No se pudo cargar tu perfil.');
@@ -130,7 +133,9 @@ function AppContent() {
       try {
         const next = await initializeUserProfile(nextUser.displayName || '');
         const merged = { ...initialProfile, ...next } as LearnerProfile;
-        setProfile(normalizeProfileForUser(nextUser, merged));
+        const normalized = normalizeProfileForUser(nextUser, merged);
+        setProfile(normalized);
+        if (normalized.lastPracticeLanguage) setPracticeLanguage(normalized.lastPracticeLanguage);
       } catch (error: any) {
         if (nextUser.email?.trim().toLowerCase() === ADMIN_EMAIL) {
           setProfile(
@@ -159,6 +164,12 @@ function AppContent() {
 
   function setLevel(level: CefrLevel) {
     setProfile((current) => ({ ...current, level }));
+  }
+
+  function startPractice(language: PracticeLanguage) {
+    setPracticeLanguage(language);
+    setProfile((current) => ({ ...current, lastPracticeLanguage: language }));
+    setTab('practice');
   }
 
   if (!firebaseConfigured) {
@@ -256,12 +267,13 @@ function AppContent() {
         {tab === 'home' && (
           <HomeScreen
             profile={profile}
-            onPractice={() => setTab('practice')}
+            onPractice={startPractice}
           />
         )}
         {tab === 'practice' && (
           <PracticeScreen
             level={profile.level}
+            practiceLanguage={practiceLanguage}
             onLevelChange={setLevel}
           />
         )}

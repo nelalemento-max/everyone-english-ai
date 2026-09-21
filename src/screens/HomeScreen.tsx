@@ -2,14 +2,14 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { AiTutorAvatar } from '../components/AiTutorAvatar';
 import { StatCard } from '../components/StatCard';
-import { LearnerProfile } from '../types';
+import { LearnerProfile, PracticeLanguage } from '../types';
 
 export function HomeScreen({
   profile,
   onPractice,
 }: {
   profile: LearnerProfile;
-  onPractice: () => void;
+  onPractice: (language: PracticeLanguage) => void;
 }) {
   const { width, height } = useWindowDimensions();
   const compact = width < 390 || height < 760;
@@ -27,9 +27,12 @@ export function HomeScreen({
           <Text style={styles.subtitle}>
             No rigid lessons. Emma follows your level, your mistakes and what you actually want to talk about.
           </Text>
-          <Pressable style={styles.primary} onPress={onPractice}>
-            <Text style={styles.primaryText}>Start talking</Text>
-          </Pressable>
+          <Text style={styles.languagePrompt}>Elige qué idioma quieres practicar hoy</Text>
+          <View style={styles.languageGrid}>
+            <LanguageButton flag="🇪🇸" label="Español" caption="Practicar español" onPress={() => onPractice('es')} />
+            <LanguageButton flag="🇬🇧" label="English" caption="Practice English" onPress={() => onPractice('en')} />
+            <LanguageButton flag="🇫🇷" label="Français" caption="Pratiquer le français" onPress={() => onPractice('fr')} />
+          </View>
         </View>
         <AiTutorAvatar listening={false} speaking={false} thinking={false} size={avatarSize} />
       </View>
@@ -40,20 +43,44 @@ export function HomeScreen({
         <StatCard value={`${profile.vocabularyCount}`} label="Words learned" />
       </View>
 
-      <Text style={styles.sectionTitle}>Today with Emma</Text>
+      <Text style={styles.sectionTitle}>Practica con Emma</Text>
       <View style={styles.promptCard}>
         <Text style={styles.promptTitle}>Free conversation</Text>
         <Text style={styles.promptText}>
-          “Tell me about your day. I’ll help only when you need it.”
+          Habla de tu día, trabajo, viajes, familia o cualquier tema. Emma se adapta al idioma que elijas.
         </Text>
       </View>
       <View style={styles.promptCard}>
-        <Text style={styles.promptTitle}>Your English, not a textbook</Text>
+        <Text style={styles.promptTitle}>Tu idioma, no un libro de texto</Text>
         <Text style={styles.promptText}>
-          Practice work, travel, family, business or any topic. Difficulty adapts from A1 to B1.
+          Español, inglés o francés con conversación natural. La dificultad se adapta de A1 a B1.
         </Text>
       </View>
     </ScrollView>
+  );
+}
+
+
+function LanguageButton({
+  flag,
+  label,
+  caption,
+  onPress,
+}: {
+  flag: string;
+  label: string;
+  caption: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={styles.languageButton} onPress={onPress}>
+      <Text style={styles.languageFlag}>{flag}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.languageLabel}>{label}</Text>
+        <Text style={styles.languageCaption}>{caption}</Text>
+      </View>
+      <Text style={styles.languageArrow}>›</Text>
+    </Pressable>
   );
 }
 
@@ -72,8 +99,13 @@ const styles = StyleSheet.create({
   title: { marginTop: 8, color: '#17324D', fontSize: 32, fontWeight: '900', lineHeight: 37 },
   titleCompact: { fontSize: 28, lineHeight: 33 },
   subtitle: { marginTop: 12, color: '#55697D', fontSize: 16, lineHeight: 24 },
-  primary: { marginTop: 20, backgroundColor: '#2F6FED', paddingVertical: 15, paddingHorizontal: 22, borderRadius: 16, alignSelf: 'flex-start' },
-  primaryText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
+  languagePrompt: { marginTop: 20, color: '#17324D', fontWeight: '900', fontSize: 15 },
+  languageGrid: { marginTop: 10, width: '100%', gap: 9 },
+  languageButton: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#DCE7F4', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12 },
+  languageFlag: { fontSize: 24 },
+  languageLabel: { color: '#17324D', fontWeight: '900', fontSize: 15 },
+  languageCaption: { marginTop: 2, color: '#738496', fontSize: 11 },
+  languageArrow: { color: '#2F6FED', fontSize: 26, fontWeight: '700' },
   statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   sectionTitle: { marginTop: 8, color: '#17324D', fontSize: 20, fontWeight: '900' },
   promptCard: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E8EEF6', borderRadius: 18, padding: 18 },
