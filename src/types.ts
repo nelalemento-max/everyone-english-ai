@@ -1,6 +1,7 @@
 export type CefrLevel = 'A1' | 'A2' | 'B1';
 export type UserRole = 'student' | 'admin';
 export type SubscriptionStatus = 'trial' | 'active' | 'complimentary' | 'blocked';
+export type PracticeLanguage = 'en' | 'es' | 'fr';
 
 export type NewWord = {
   word: string;
@@ -18,6 +19,7 @@ export type ConversationTurn = {
   audioBase64?: string;
   suggestedReply?: string | null;
   topic?: string;
+  practiceLanguage?: PracticeLanguage;
 };
 
 export type LearnerProfile = {
@@ -32,4 +34,5 @@ export type LearnerProfile = {
   streak: number;
   vocabularyCount: number;
   lastTopic: string;
+  lastPracticeLanguage?: PracticeLanguage;
 };
