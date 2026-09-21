@@ -22,7 +22,7 @@ import { AiTutorAvatar } from '../components/AiTutorAvatar';
 import { playBase64Audio, sendConversationTurn } from '../services/conversation';
 import { CefrLevel, ConversationTurn } from '../types';
 
-const topics = ['My day', 'Work', 'Travel', 'Family', 'Business', 'Anything'];
+const topics = ['My day', 'Work', 'Travel', 'Family', 'Business', 'Food', 'Hobbies', 'Shopping', 'Plans', 'Anything'];
 
 export function PracticeScreen({
   level,
@@ -45,6 +45,7 @@ export function PracticeScreen({
   const [turn, setTurn] = useState<ConversationTurn | null>(null);
   const [typed, setTyped] = useState('');
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [topicNotice, setTopicNotice] = useState('');
 
   useEffect(() => {
     setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true }).catch(() => null);
@@ -56,6 +57,30 @@ export function PracticeScreen({
     if (playerStatus.playing) return 'Emma is speaking…';
     return 'Tap the microphone and talk.';
   }, [busy, playerStatus.playing, recorderState.isRecording]);
+
+  function applyTutorResponse(response: ConversationTurn) {
+    setTurn(response);
+    onLevelChange(response.level);
+    if (response.topic && topics.includes(response.topic)) {
+      setTopic(response.topic);
+    }
+  }
+
+  function chooseTopic(item: string) {
+    if (busy || recorderState.isRecording) return;
+    setTopic(item);
+    setTurn(null);
+    setTyped('');
+    setTopicNotice('Nuevo tema: ' + item + '. Empieza cuando quieras.');
+  }
+
+  function changeTopic() {
+    if (busy || recorderState.isRecording) return;
+    const available = topics.filter((item) => item !== topic && item !== 'Anything');
+    const currentIndex = Math.max(0, topics.indexOf(topic));
+    const next = available[currentIndex % available.length] || 'Travel';
+    chooseTopic(next);
+  }
 
   async function startRecording() {
     try {
@@ -81,8 +106,7 @@ export function PracticeScreen({
       setStartedAt(null);
       setBusy(true);
       const response = await sendConversationTurn({ audioUri: uri, level, topic, seconds });
-      setTurn(response);
-      onLevelChange(response.level);
+      applyTutorResponse(response);
       if (response.audioBase64) await playBase64Audio(player, response.audioBase64);
     } catch (error: any) {
       Alert.alert('Conversation', error?.message || 'The turn could not be processed.');
@@ -98,8 +122,7 @@ export function PracticeScreen({
       setBusy(true);
       setTyped('');
       const response = await sendConversationTurn({ text, level, topic, seconds: 0 });
-      setTurn(response);
-      onLevelChange(response.level);
+      applyTutorResponse(response);
       if (response.audioBase64) await playBase64Audio(player, response.audioBase64);
     } catch (error: any) {
       Alert.alert('Conversation', error?.message || 'The message could not be sent.');
@@ -134,13 +157,31 @@ export function PracticeScreen({
         {topics.map((item) => (
           <Pressable
             key={item}
-            onPress={() => setTopic(item)}
+            onPress={() => chooseTopic(item)}
             style={[styles.topic, topic === item && styles.topicActive]}
           >
             <Text style={[styles.topicText, topic === item && styles.topicTextActive]}>{item}</Text>
           </Pressable>
         ))}
       </ScrollView>
+
+      <View style={styles.topicControl}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.currentTopicLabel}>TEMA ACTUAL</Text>
+          <Text style={styles.currentTopic}>{topic}</Text>
+        </View>
+        <Pressable
+          disabled={busy || recorderState.isRecording}
+          onPress={changeTopic}
+          style={styles.changeTopic}
+        >
+          <Text style={styles.changeTopicText}>↻ Cambiar tema</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.changeTopicHint}>
+        También puedes decirle a Emma: “Let's change the topic.”
+      </Text>
+      {!!topicNotice && <Text style={styles.topicNotice}>{topicNotice}</Text>}
 
       <Pressable
         disabled={busy}
@@ -236,6 +277,13 @@ const styles = StyleSheet.create({
   topicActive: { backgroundColor: '#17324D', borderColor: '#17324D' },
   topicText: { color: '#516579', fontWeight: '700' },
   topicTextActive: { color: '#FFF' },
+  topicControl: { marginTop: 7, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2EAF3', borderRadius: 16, padding: 12 },
+  currentTopicLabel: { color: '#8A98A6', fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
+  currentTopic: { marginTop: 2, color: '#17324D', fontWeight: '900', fontSize: 15 },
+  changeTopic: { backgroundColor: '#EEF4FF', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  changeTopicText: { color: '#2F6FED', fontWeight: '900', fontSize: 12 },
+  changeTopicHint: { marginTop: 6, color: '#7A8998', fontSize: 11, lineHeight: 16 },
+  topicNotice: { marginTop: 5, color: '#277154', fontSize: 11, fontWeight: '800' },
   mic: { marginTop: 14, backgroundColor: '#2F6FED', borderRadius: 18, minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
   micRecording: { backgroundColor: '#D65757' },
   micDisabled: { opacity: 0.55 },
