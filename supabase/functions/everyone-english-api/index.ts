@@ -7,9 +7,36 @@ const ADMIN_EMAIL = "nelalemento@gmail.com";
 const TRIAL_HOURS = 48;
 
 const PRACTICE_LANGUAGES = {
-  en: { name: "English", transcriptionCode: "en", example: "I like coffee." },
-  es: { name: "Spanish", transcriptionCode: "es", example: "Me gusta el café." },
-  fr: { name: "French", transcriptionCode: "fr", example: "J'aime le café." },
+  en: {
+    name: "English",
+    transcriptionCode: "en",
+    example: "I like coffee.",
+    strictRule:
+      "Use English ONLY for reply, correction, suggested_reply and new_words.word. Do not switch to Spanish or French unless the learner explicitly asks for a translation.",
+    fallbackReply: "Tell me a little more.",
+    ttsInstruction:
+      "Warm, patient English language tutor. Speak clearly, naturally and encouragingly.",
+  },
+  es: {
+    name: "Spanish",
+    transcriptionCode: "es",
+    example: "Me gusta el café.",
+    strictRule:
+      "Use Spanish ONLY for reply, correction, suggested_reply and new_words.word. Do not switch to English or French, even if earlier conversation used another language. Only explanation_es and tip_es are also Spanish support.",
+    fallbackReply: "Cuéntame un poco más.",
+    ttsInstruction:
+      "Tutora cálida y paciente de español. Habla en español claro, natural y alentador.",
+  },
+  fr: {
+    name: "French",
+    transcriptionCode: "fr",
+    example: "J'aime le café.",
+    strictRule:
+      "Use French ONLY for reply, correction, suggested_reply and new_words.word. Do not switch to English or Spanish, even if earlier conversation used another language. explanation_es and tip_es remain brief Spanish support.",
+    fallbackReply: "Dis-m'en un peu plus.",
+    ttsInstruction:
+      "Professeure de français chaleureuse et patiente. Parle en français clair, naturel et encourageant.",
+  },
 } as const;
 
 const AI_COST_RATES = {
@@ -280,7 +307,12 @@ async function transcribe(apiKey: string, audioBase64: string, mimeType: string,
   };
 }
 
-async function synthesize(apiKey: string, text: string, level: string) {
+async function synthesize(
+  apiKey: string,
+  text: string,
+  level: string,
+  language: keyof typeof PRACTICE_LANGUAGES,
+) {
   const speed = level === "A1" ? 0.82 : level === "A2" ? 0.92 : 1;
   const response = await fetch("https://api.openai.com/v1/audio/speech", {
     method: "POST",
@@ -296,8 +328,8 @@ async function synthesize(apiKey: string, text: string, level: string) {
       speed,
       instructions:
         level === "A1"
-          ? "Warm, patient English tutor for a beginner. Speak clearly and a little slowly, with natural short pauses. Use simple pronunciation and sound encouraging, not robotic."
-          : "Warm, patient English conversation coach. Clear pronunciation, friendly and natural, never robotic.",
+          ? `${PRACTICE_LANGUAGES[language].ttsInstruction} Speak a little slowly, with short natural pauses and simple pronunciation for a beginner.`
+          : PRACTICE_LANGUAGES[language].ttsInstruction,
     }),
   });
   if (!response.ok) {
@@ -334,21 +366,29 @@ function extractResponseText(payload: any) {
   return pieces.join("\n").trim();
 }
 
-function cleanTutorJson(text: string, fallbackLevel: string, fallbackTopic: string): TutorReply {
+function cleanTutorJson(
+  text: string,
+  fallbackLevel: string,
+  fallbackTopic: string,
+  language: keyof typeof PRACTICE_LANGUAGES,
+): TutorReply {
+  const fallbackReply = PRACTICE_LANGUAGES[language].fallbackReply;
   try {
     const trimmed = text
       .trim()
-      .replace(/^```json\s*/i, "")
-      .replace(/```$/i, "")
+      .replace(/^\`\`\`json\s*/i, "")
+      .replace(/\`\`\`$/i, "")
       .trim();
     const parsed = JSON.parse(trimmed);
 
     return {
-      reply: String(parsed.reply || "Tell me a little more."),
+      reply: String(parsed.reply || fallbackReply),
       correction: parsed.correction ? String(parsed.correction) : null,
       explanation_es: parsed.explanation_es ? String(parsed.explanation_es) : null,
       tip_es: String(parsed.tip_es || "Sigue hablando con frases cortas y claras."),
-      level: ["A1", "A2", "B1"].includes(parsed.level) ? parsed.level : fallbackLevel as any,
+      level: ["A1", "A2", "B1"].includes(parsed.level)
+        ? parsed.level
+        : fallbackLevel as any,
       new_words: Array.isArray(parsed.new_words)
         ? parsed.new_words
             .slice(0, 3)
@@ -363,7 +403,7 @@ function cleanTutorJson(text: string, fallbackLevel: string, fallbackTopic: stri
     };
   } catch {
     return {
-      reply: text || "Great. Tell me a little more about that.",
+      reply: text || fallbackReply,
       correction: null,
       explanation_es: null,
       tip_es: "Sigue hablando con frases cortas y claras.",
@@ -382,8 +422,10 @@ There are no rigid lessons. Keep a natural conversation going about the learner'
 Adapt continuously from CEFR A1 through B1.
 
 Rules:
+- The selected target practice language is a HARD BOUNDARY for the conversation.
 - Follow the target practice language supplied in the request.
 - Reply in the target practice language, usually 1 to 3 short sentences.
+- Never drift into one of the other supported languages because of previous turns.
 - Normally end with one easy follow-up question.
 - For A1, use very short sentences and common words.
 - Correct at most ONE important mistake in a turn.
@@ -532,8 +574,8 @@ async function conversation(
     model: "gpt-5.6-luna",
     reasoning: { effort: "none" },
     store: false,
-    instructions: tutorInstructions,
-    input: `Target practice language: ${languageConfig.name}\nCurrent estimated level: ${requestedLevel}\nPreferred topic: ${requestedTopic}\n\nRecent conversation:\n${recent || "(first turn)"}\n\nLearner now says:\n${transcript}`,
+    instructions: `${tutorInstructions}\n\nCURRENT LANGUAGE RULE — THIS OVERRIDES ALL OTHER LANGUAGE CONTEXT:\n${languageConfig.strictRule}`,
+    input: `Target practice language: ${languageConfig.name}\nCurrent estimated level: ${requestedLevel}\nPreferred topic: ${requestedTopic}\n\nRecent conversation in THIS SAME language only:\n${recent || "(first turn)"}\n\nLearner now says:\n${transcript}`,
     text: {
       format: {
         type: "json_schema",
@@ -549,6 +591,7 @@ async function conversation(
     extractResponseText(response),
     requestedLevel,
     requestedTopic,
+    requestedLanguage,
   );
 
   const measuredLlmInput = Number(response?.usage?.input_tokens ?? 0);
@@ -569,7 +612,7 @@ async function conversation(
         )
       : (seconds / 60) * AI_COST_RATES.transcribePerMinuteFallback;
 
-  const audio = await synthesize(apiKey, tutor.reply, tutor.level);
+  const audio = await synthesize(apiKey, tutor.reply, tutor.level, requestedLanguage);
   const totalAiCostUsd = llmCostUsd + transcribeCostUsd + audio.estimatedCostUsd;
 
   const { error: turnError } = await supabase.from("conversation_turns").insert({
