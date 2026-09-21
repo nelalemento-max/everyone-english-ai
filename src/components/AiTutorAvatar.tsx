@@ -32,13 +32,13 @@ export function AiTutorAvatar({
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.delay(2200),
-        Animated.timing(blink, { toValue: 0.08, duration: 85, useNativeDriver: true }),
+        Animated.delay(2100),
+        Animated.timing(blink, { toValue: 0.06, duration: 80, useNativeDriver: true }),
         Animated.timing(blink, { toValue: 1, duration: 120, useNativeDriver: true }),
-        Animated.delay(1800),
-        Animated.timing(blink, { toValue: 0.08, duration: 85, useNativeDriver: true }),
+        Animated.delay(1900),
+        Animated.timing(blink, { toValue: 0.06, duration: 80, useNativeDriver: true }),
         Animated.timing(blink, { toValue: 1, duration: 120, useNativeDriver: true }),
-        Animated.delay(3200),
+        Animated.delay(3300),
       ]),
     );
     loop.start();
@@ -51,6 +51,7 @@ export function AiTutorAvatar({
       Animated.timing(pulse, { toValue: 1, duration: 180, useNativeDriver: true }).start();
       return;
     }
+
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, { toValue: 1.045, duration: 650, useNativeDriver: true }),
@@ -67,12 +68,13 @@ export function AiTutorAvatar({
       mouth.setValue(0);
       return;
     }
+
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(mouth, { toValue: 1, duration: 110, useNativeDriver: true }),
-        Animated.timing(mouth, { toValue: 0.2, duration: 95, useNativeDriver: true }),
-        Animated.timing(mouth, { toValue: 0.75, duration: 120, useNativeDriver: true }),
-        Animated.timing(mouth, { toValue: 0, duration: 125, useNativeDriver: true }),
+        Animated.timing(mouth, { toValue: 1, duration: 105, useNativeDriver: true }),
+        Animated.timing(mouth, { toValue: 0.25, duration: 95, useNativeDriver: true }),
+        Animated.timing(mouth, { toValue: 0.75, duration: 115, useNativeDriver: true }),
+        Animated.timing(mouth, { toValue: 0, duration: 120, useNativeDriver: true }),
       ]),
     );
     loop.start();
@@ -85,6 +87,7 @@ export function AiTutorAvatar({
       thinkingPulse.setValue(0.45);
       return;
     }
+
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(thinkingPulse, { toValue: 1, duration: 520, useNativeDriver: true }),
@@ -96,20 +99,18 @@ export function AiTutorAvatar({
   }, [thinking, thinkingPulse]);
 
   const dims = useMemo(() => {
-    const faceW = size * 0.55;
-    const faceH = size * 0.64;
+    const faceW = size * 0.52;
+    const faceH = size * 0.65;
     return {
       faceW,
       faceH,
-      faceTop: size * 0.18,
-      hairW: faceW * 1.15,
-      hairH: faceH * 1.08,
-      eyeW: Math.max(12, size * 0.072),
+      faceTop: size * 0.145,
+      eyeW: Math.max(13, size * 0.074),
       eyeH: Math.max(8, size * 0.043),
-      pupil: Math.max(5, size * 0.026),
-      eyeGap: size * 0.12,
-      mouthW: size * 0.15,
-      mouthH: Math.max(5, size * 0.027),
+      pupil: Math.max(5, size * 0.027),
+      eyeGap: size * 0.118,
+      mouthW: size * 0.145,
+      mouthH: Math.max(5, size * 0.026),
     };
   }, [size]);
 
@@ -119,7 +120,7 @@ export function AiTutorAvatar({
       ? 'Thinking…'
       : speaking
         ? 'Speaking…'
-        : 'Emma · AI Tutor';
+        : 'Emma · English Tutor';
 
   return (
     <Animated.View
@@ -138,24 +139,37 @@ export function AiTutorAvatar({
     >
       <View
         style={[
-          styles.shoulders,
+          styles.body,
           {
-            width: size * 0.72,
-            height: size * 0.25,
+            width: size * 0.76,
+            height: size * 0.29,
+            bottom: size * 0.01,
             borderTopLeftRadius: size * 0.3,
             borderTopRightRadius: size * 0.3,
-            bottom: size * 0.025,
           },
         ]}
-      />
+      >
+        <View
+          style={[
+            styles.blouseNeck,
+            {
+              width: size * 0.19,
+              height: size * 0.11,
+              borderBottomLeftRadius: size * 0.09,
+              borderBottomRightRadius: size * 0.09,
+            },
+          ]}
+        />
+      </View>
+
       <View
         style={[
           styles.neck,
           {
             width: size * 0.13,
-            height: size * 0.18,
+            height: size * 0.19,
             borderRadius: size * 0.05,
-            bottom: size * 0.16,
+            bottom: size * 0.15,
           },
         ]}
       />
@@ -173,11 +187,38 @@ export function AiTutorAvatar({
           style={[
             styles.hairBack,
             {
-              width: dims.hairW,
-              height: dims.hairH,
-              borderRadius: dims.hairW * 0.46,
-              left: -((dims.hairW - dims.faceW) / 2),
-              top: -size * 0.055,
+              width: size * 0.7,
+              height: size * 0.82,
+              borderRadius: size * 0.29,
+              left: -(size * 0.7 - dims.faceW) / 2,
+              top: -size * 0.07,
+            },
+          ]}
+        />
+
+        <View
+          style={[
+            styles.hairSide,
+            styles.hairSideLeft,
+            {
+              width: size * 0.14,
+              height: size * 0.45,
+              borderRadius: size * 0.08,
+              left: -size * 0.09,
+              top: size * 0.13,
+            },
+          ]}
+        />
+        <View
+          style={[
+            styles.hairSide,
+            styles.hairSideRight,
+            {
+              width: size * 0.14,
+              height: size * 0.45,
+              borderRadius: size * 0.08,
+              right: -size * 0.09,
+              top: size * 0.13,
             },
           ]}
         />
@@ -185,26 +226,49 @@ export function AiTutorAvatar({
         <View
           style={[
             styles.ear,
-            styles.earLeft,
             {
-              width: size * 0.055,
-              height: size * 0.1,
+              width: size * 0.052,
+              height: size * 0.095,
               borderRadius: size * 0.03,
-              top: dims.faceH * 0.44,
-              left: -size * 0.035,
+              left: -size * 0.03,
+              top: dims.faceH * 0.45,
             },
           ]}
         />
         <View
           style={[
             styles.ear,
-            styles.earRight,
             {
-              width: size * 0.055,
-              height: size * 0.1,
+              width: size * 0.052,
+              height: size * 0.095,
               borderRadius: size * 0.03,
-              top: dims.faceH * 0.44,
-              right: -size * 0.035,
+              right: -size * 0.03,
+              top: dims.faceH * 0.45,
+            },
+          ]}
+        />
+
+        <View
+          style={[
+            styles.earring,
+            {
+              width: size * 0.025,
+              height: size * 0.025,
+              borderRadius: size * 0.013,
+              left: -size * 0.018,
+              top: dims.faceH * 0.54,
+            },
+          ]}
+        />
+        <View
+          style={[
+            styles.earring,
+            {
+              width: size * 0.025,
+              height: size * 0.025,
+              borderRadius: size * 0.013,
+              right: -size * 0.018,
+              top: dims.faceH * 0.54,
             },
           ]}
         />
@@ -215,44 +279,82 @@ export function AiTutorAvatar({
             {
               width: dims.faceW,
               height: dims.faceH,
-              borderRadius: dims.faceW * 0.44,
+              borderRadius: dims.faceW * 0.46,
             },
           ]}
         >
-          <View style={[styles.hairFringe, { height: size * 0.12 }]} />
+          <View
+            style={[
+              styles.hairFringe,
+              {
+                height: size * 0.15,
+                borderBottomLeftRadius: size * 0.12,
+                borderBottomRightRadius: size * 0.08,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.hairSweep,
+              {
+                width: size * 0.19,
+                height: size * 0.18,
+                borderRadius: size * 0.1,
+                right: -size * 0.015,
+                top: -size * 0.015,
+              },
+            ]}
+          />
 
           <View style={[styles.browsRow, { marginTop: size * 0.205, gap: dims.eyeGap }]}>
-            <View style={[styles.brow, { width: dims.eyeW * 1.08 }]} />
-            <View style={[styles.brow, { width: dims.eyeW * 1.08 }]} />
+            <View style={[styles.brow, { width: dims.eyeW * 1.15 }]} />
+            <View style={[styles.brow, { width: dims.eyeW * 1.15 }]} />
           </View>
 
-          <View style={[styles.eyesRow, { marginTop: size * 0.025, gap: dims.eyeGap }]}>
+          <View style={[styles.eyesRow, { marginTop: size * 0.023, gap: dims.eyeGap }]}>
             {[0, 1].map((index) => (
-              <Animated.View
-                key={index}
-                style={[
-                  styles.eye,
-                  {
-                    width: dims.eyeW,
-                    height: dims.eyeH,
-                    borderRadius: dims.eyeH,
-                    transform: [{ scaleY: blink }],
-                  },
-                ]}
-              >
-                <View
+              <View key={index} style={styles.eyeGroup}>
+                <Animated.View
                   style={[
-                    styles.pupil,
+                    styles.eye,
                     {
-                      width: dims.pupil,
-                      height: dims.pupil,
-                      borderRadius: dims.pupil / 2,
+                      width: dims.eyeW,
+                      height: dims.eyeH,
+                      borderRadius: dims.eyeH,
+                      transform: [{ scaleY: blink }],
                     },
                   ]}
                 >
-                  <View style={styles.eyeShine} />
+                  <View
+                    style={[
+                      styles.iris,
+                      {
+                        width: dims.pupil * 1.5,
+                        height: dims.pupil * 1.5,
+                        borderRadius: dims.pupil,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.pupil,
+                        {
+                          width: dims.pupil,
+                          height: dims.pupil,
+                          borderRadius: dims.pupil / 2,
+                        },
+                      ]}
+                    >
+                      <View style={styles.eyeShine} />
+                    </View>
+                  </View>
+                </Animated.View>
+                <View style={styles.lashes}>
+                  <View style={[styles.lash, { transform: [{ rotate: '-28deg' }] }]} />
+                  <View style={styles.lash} />
+                  <View style={[styles.lash, { transform: [{ rotate: '28deg' }] }]} />
                 </View>
-              </Animated.View>
+              </View>
             ))}
           </View>
 
@@ -260,13 +362,16 @@ export function AiTutorAvatar({
             style={[
               styles.nose,
               {
-                width: size * 0.024,
-                height: size * 0.072,
+                width: size * 0.021,
+                height: size * 0.067,
                 borderRadius: size * 0.02,
-                marginTop: size * 0.055,
+                marginTop: size * 0.05,
               },
             ]}
           />
+
+          <View style={[styles.blush, styles.blushLeft, { top: dims.faceH * 0.66 }]} />
+          <View style={[styles.blush, styles.blushRight, { top: dims.faceH * 0.66 }]} />
 
           <Animated.View
             style={[
@@ -275,7 +380,7 @@ export function AiTutorAvatar({
                 width: dims.mouthW,
                 height: dims.mouthH,
                 borderRadius: dims.mouthH,
-                marginTop: size * 0.055,
+                marginTop: size * 0.047,
                 transform: [
                   {
                     scaleY: mouth.interpolate({
@@ -286,10 +391,9 @@ export function AiTutorAvatar({
                 ],
               },
             ]}
-          />
-
-          <View style={[styles.cheek, styles.cheekLeft, { top: dims.faceH * 0.67 }]} />
-          <View style={[styles.cheek, styles.cheekRight, { top: dims.faceH * 0.67 }]} />
+          >
+            <View style={styles.lipHighlight} />
+          </Animated.View>
         </View>
       </Animated.View>
 
@@ -318,7 +422,7 @@ const styles = StyleSheet.create({
   outer: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EAF3FF',
+    backgroundColor: '#EDF4FF',
     borderWidth: 5,
     borderColor: '#D7E6FA',
     shadowColor: '#2F6FED',
@@ -331,103 +435,180 @@ const styles = StyleSheet.create({
   outerListening: { borderColor: '#79C4A3' },
   outerThinking: { borderColor: '#F0C36E' },
   outerSpeaking: { borderColor: '#8FAEF3' },
-  headWrap: {
+
+  body: {
     position: 'absolute',
-    alignItems: 'center',
-    zIndex: 4,
-  },
-  shoulders: {
-    position: 'absolute',
-    backgroundColor: '#345B8C',
+    backgroundColor: '#5C7DBA',
     zIndex: 1,
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  blouseNeck: {
+    marginTop: -2,
+    backgroundColor: '#F8FBFF',
+    transform: [{ rotate: '45deg' }],
   },
   neck: {
     position: 'absolute',
     backgroundColor: '#E8B99B',
     zIndex: 2,
   },
+
+  headWrap: {
+    position: 'absolute',
+    alignItems: 'center',
+    zIndex: 4,
+  },
   hairBack: {
     position: 'absolute',
-    backgroundColor: '#3B2A24',
+    backgroundColor: '#35251F',
   },
+  hairSide: {
+    position: 'absolute',
+    backgroundColor: '#35251F',
+    zIndex: 1,
+  },
+  hairSideLeft: {
+    transform: [{ rotate: '7deg' }],
+  },
+  hairSideRight: {
+    transform: [{ rotate: '-7deg' }],
+  },
+
   face: {
     backgroundColor: '#F1C4A5',
     alignItems: 'center',
     overflow: 'hidden',
-    zIndex: 3,
+    zIndex: 4,
   },
   hairFringe: {
     position: 'absolute',
-    width: '115%',
+    width: '118%',
     top: -8,
-    borderBottomLeftRadius: 48,
-    borderBottomRightRadius: 30,
-    backgroundColor: '#3B2A24',
+    backgroundColor: '#35251F',
     transform: [{ rotate: '-4deg' }],
+    zIndex: 8,
   },
+  hairSweep: {
+    position: 'absolute',
+    backgroundColor: '#35251F',
+    transform: [{ rotate: '24deg' }],
+    zIndex: 9,
+  },
+
   ear: {
     position: 'absolute',
     backgroundColor: '#E7B598',
-    zIndex: 2,
+    zIndex: 3,
   },
-  earLeft: {},
-  earRight: {},
-  browsRow: { flexDirection: 'row' },
+  earring: {
+    position: 'absolute',
+    backgroundColor: '#E7C46A',
+    zIndex: 7,
+    borderWidth: 1,
+    borderColor: '#FFF3C2',
+  },
+
+  browsRow: {
+    flexDirection: 'row',
+    zIndex: 10,
+  },
   brow: {
     height: 3,
     borderRadius: 3,
-    backgroundColor: '#5B4035',
+    backgroundColor: '#5A4036',
   },
-  eyesRow: { flexDirection: 'row' },
+  eyesRow: {
+    flexDirection: 'row',
+    zIndex: 10,
+  },
+  eyeGroup: {
+    alignItems: 'center',
+  },
   eye: {
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    borderWidth: 0.6,
+    borderColor: '#E0B5A0',
+  },
+  iris: {
+    backgroundColor: '#6E8F8A',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pupil: {
-    backgroundColor: '#344D56',
+    backgroundColor: '#28353B',
     alignItems: 'flex-start',
     justifyContent: 'flex-start',
   },
   eyeShine: {
-    width: 2.5,
-    height: 2.5,
+    width: 2.8,
+    height: 2.8,
     borderRadius: 2,
     backgroundColor: '#FFFFFF',
     marginLeft: 1.5,
     marginTop: 1,
   },
+  lashes: {
+    flexDirection: 'row',
+    gap: 3,
+    marginTop: -1,
+  },
+  lash: {
+    width: 1.4,
+    height: 5,
+    borderRadius: 1,
+    backgroundColor: '#43332D',
+  },
+
   nose: {
-    backgroundColor: '#DAA486',
+    backgroundColor: '#DCA88B',
   },
-  mouth: {
-    backgroundColor: '#B95E6A',
-  },
-  cheek: {
+  blush: {
     position: 'absolute',
-    width: 16,
-    height: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(220, 126, 126, 0.16)',
+    width: 18,
+    height: 9,
+    borderRadius: 9,
+    backgroundColor: 'rgba(213, 110, 120, 0.18)',
   },
-  cheekLeft: { left: 15 },
-  cheekRight: { right: 15 },
+  blushLeft: { left: 13 },
+  blushRight: { right: 13 },
+
+  mouth: {
+    backgroundColor: '#B95768',
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+  lipHighlight: {
+    marginTop: 1,
+    width: '55%',
+    height: 1.4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+
   thinkingDots: {
     position: 'absolute',
-    right: '10%',
-    top: '13%',
+    right: '9%',
+    top: '11%',
     backgroundColor: '#FFFFFF',
     borderRadius: 15,
     paddingHorizontal: 9,
     paddingVertical: 3,
-    zIndex: 8,
+    zIndex: 12,
+    shadowColor: '#17324D',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
   thinkingDotsText: {
     color: '#C08A2D',
     fontWeight: '900',
     letterSpacing: 2,
   },
+
   badge: {
     position: 'absolute',
     bottom: -18,
@@ -438,7 +619,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    zIndex: 10,
+    zIndex: 15,
   },
   stateDot: {
     width: 7,
@@ -449,5 +630,9 @@ const styles = StyleSheet.create({
   stateDotListening: { backgroundColor: '#79C4A3' },
   stateDotThinking: { backgroundColor: '#F0C36E' },
   stateDotSpeaking: { backgroundColor: '#8FAEF3' },
-  badgeText: { color: '#FFF', fontWeight: '700', fontSize: 12 },
+  badgeText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 12,
+  },
 });
