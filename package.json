@@ -7,15 +7,16 @@
     "start": "expo start",
     "android": "expo run:android",
     "web": "expo start --web",
-    "prebuild:android": "expo prebuild --platform android",
+    "prebuild:android": "expo prebuild --platform android && npm run android:sdk",
     "build:web": "expo export --platform web",
     "firebase:deploy": "npm run build:web && firebase deploy",
     "typecheck": "tsc --noEmit",
     "android:release": "expo run:android --variant release --no-bundler",
-    "build:android:apk": "cd android && gradlew.bat assembleRelease",
+    "build:android:apk": "npm run android:sdk && cd android && gradlew.bat assembleRelease",
     "deploy:web": "npm run build:web && npx firebase-tools deploy --only hosting --project everyone-english-ai",
     "deploy:backend": "npx supabase functions deploy everyone-english-api --project-ref coddqwhoigpobomasrzs --no-verify-jwt",
-    "update:web": "npm run deploy:web"
+    "update:web": "npm run deploy:web",
+    "android:sdk": "powershell -NoProfile -Command \"$p = Join-Path $env:LOCALAPPDATA 'Android\\Sdk'; $v = 'sdk.dir=' + ($p -replace '\\\\','/'); Set-Content -Path 'android\\local.properties' -Value $v -Encoding ASCII\""
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
