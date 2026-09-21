@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "android:release": "expo run:android --variant release --no-bundler",
     "build:android:apk": "cd android && gradlew.bat assembleRelease",
-    "deploy:web": "npm run build:web && npx firebase-tools deploy --only hosting --project everyone-english-ai"
+    "deploy:web": "npm run build:web && npx firebase-tools deploy --only hosting --project everyone-english-ai",
+    "deploy:backend": "npx supabase functions deploy everyone-english-api --project-ref coddqwhoigpobomasrzs --no-verify-jwt",
+    "update:web": "npm run deploy:web"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
