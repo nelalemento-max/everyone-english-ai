@@ -6,6 +6,12 @@ const FIREBASE_PROJECT_ID = "everyone-english-ai";
 const ADMIN_EMAIL = "nelalemento@gmail.com";
 const TRIAL_HOURS = 48;
 
+const PRACTICE_LANGUAGES = {
+  en: { name: "English", transcriptionCode: "en", example: "I like coffee." },
+  es: { name: "Spanish", transcriptionCode: "es", example: "Me gusta el café." },
+  fr: { name: "French", transcriptionCode: "fr", example: "J'aime le café." },
+} as const;
+
 const AI_COST_RATES = {
   llmInputPerMillion: 0.20,
   llmOutputPerMillion: 1.20,
@@ -226,6 +232,7 @@ function publicProfile(profile: any) {
     streak: Number(profile.streak ?? 1),
     vocabularyCount: Number(profile.vocabulary_count ?? 0),
     lastTopic: profile.last_topic ?? "Anything",
+    lastPracticeLanguage: profile.last_practice_language ?? "en",
   };
 }
 
@@ -247,13 +254,13 @@ async function openAiJson(apiKey: string, path: string, body: any) {
   return response.json();
 }
 
-async function transcribe(apiKey: string, audioBase64: string, mimeType: string) {
+async function transcribe(apiKey: string, audioBase64: string, mimeType: string, languageCode: string) {
   const bytes = Uint8Array.from(atob(audioBase64), (char) => char.charCodeAt(0));
   const form = new FormData();
   const extension = mimeType.includes("webm") ? "webm" : "m4a";
   form.append("file", new Blob([bytes], { type: mimeType }), `learner.${extension}`);
   form.append("model", "gpt-4o-mini-transcribe");
-  form.append("language", "en");
+  form.append("language", languageCode);
   form.append("prompt", "English learner conversation. Keep imperfect learner wording when audible.");
 
   const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
@@ -369,27 +376,28 @@ function cleanTutorJson(text: string, fallbackLevel: string, fallbackTopic: stri
 }
 
 const tutorInstructions = `
-You are Emma, a warm AI English conversation coach inside Everyone English.
-The learner's support language is Spanish, but the conversation itself is primarily English.
+You are Emma, a warm AI language conversation coach inside Everyone English.
+The learner may choose to practice English, Spanish, or French.
 There are no rigid lessons. Keep a natural conversation going about the learner's real life and interests.
 Adapt continuously from CEFR A1 through B1.
 
 Rules:
-- Reply in natural English, usually 1 to 3 short sentences.
+- Follow the target practice language supplied in the request.
+- Reply in the target practice language, usually 1 to 3 short sentences.
 - Normally end with one easy follow-up question.
 - For A1, use very short sentences and common words.
 - Correct at most ONE important mistake in a turn.
-- Do not mark a grammatically valid sentence as wrong just because a different sentence fits the context better. In that case, keep correction null and mention the alternative briefly in explanation_es or the reply.
+- Do not mark a grammatically valid sentence as wrong just because a different sentence fits the context better.
 - If the learner is already natural, correction must be null.
+- correction and suggested_reply must be in the target practice language.
 - explanation_es and tip_es are brief Spanish support.
-- If the learner uses Spanish because they do not know the English phrase, teach it and invite them to try it.
-- If the learner says they are tired of the topic, asks to change topic, or says "change the topic", immediately switch to a DIFFERENT practical topic, ask a fresh question, and set the JSON topic field to the new topic.
+- If the learner uses Spanish because they do not know a phrase in English or French, teach the target-language phrase and invite them to try it.
+- If the learner asks to change topic, immediately switch to a different practical topic, ask a fresh question, and set the JSON topic field to the new topic.
 - Preferred topic names: My day, Work, Travel, Family, Business, Food, Hobbies, Shopping, Plans, Anything.
 - Never scold, grade, or make the learner feel tested.
-- For A1 learners, suggested_reply MUST contain one short, natural example answer the learner can say next, directly answering your final question. Keep it 3 to 10 simple words.
+- For A1 learners, suggested_reply MUST contain one short, natural example answer in the target practice language, 3 to 10 simple words.
 - For A2 or B1, suggested_reply should normally be null unless the learner explicitly asks for an example.
-- Return strict JSON only:
-{"reply":"...","correction":null,"explanation_es":null,"tip_es":"...","level":"A1","new_words":[{"word":"...","meaning_es":"..."}],"topic":"...","suggested_reply":"I eat chicken and rice."}
+- Return strict JSON only.
 `;
 
 
@@ -461,6 +469,11 @@ async function conversation(
   const requestedLevel = ["A1", "A2", "B1"].includes(body.level) ? body.level : "A1";
   const requestedTopic =
     typeof body.topic === "string" ? body.topic.slice(0, 80) : "Anything";
+  const requestedLanguage =
+    typeof body.practiceLanguage === "string" && body.practiceLanguage in PRACTICE_LANGUAGES
+      ? body.practiceLanguage as keyof typeof PRACTICE_LANGUAGES
+      : "en";
+  const languageConfig = PRACTICE_LANGUAGES[requestedLanguage];
   const seconds = Math.max(0, Math.min(60, Number(body.seconds || 0)));
 
   if (!typedText && !audioBase64) {
@@ -490,7 +503,7 @@ async function conversation(
 
   const transcribed = typedText
     ? { text: typedText, inputTokens: 0, outputTokens: 0 }
-    : await transcribe(apiKey, audioBase64, mimeType);
+    : await transcribe(apiKey, audioBase64, mimeType, languageConfig.transcriptionCode);
   const transcript = transcribed.text;
   if (!transcript) {
     return json(
@@ -501,8 +514,9 @@ async function conversation(
 
   const { data: recentRows, error: recentError } = await supabase
     .from("conversation_turns")
-    .select("transcript, reply, topic, created_at")
+    .select("transcript, reply, topic, practice_language, created_at")
     .eq("firebase_uid", profile.firebase_uid)
+    .eq("practice_language", requestedLanguage)
     .order("created_at", { ascending: false })
     .limit(10);
   if (recentError) throw recentError;
@@ -519,7 +533,7 @@ async function conversation(
     reasoning: { effort: "none" },
     store: false,
     instructions: tutorInstructions,
-    input: `Current estimated level: ${requestedLevel}\nPreferred topic: ${requestedTopic}\n\nRecent conversation:\n${recent || "(first turn)"}\n\nLearner now says:\n${transcript}`,
+    input: `Target practice language: ${languageConfig.name}\nCurrent estimated level: ${requestedLevel}\nPreferred topic: ${requestedTopic}\n\nRecent conversation:\n${recent || "(first turn)"}\n\nLearner now says:\n${transcript}`,
     text: {
       format: {
         type: "json_schema",
@@ -569,6 +583,7 @@ async function conversation(
     topic: tutor.topic,
     new_words: tutor.new_words,
     seconds,
+    practice_language: requestedLanguage,
     llm_input_tokens: llmInputTokens,
     llm_output_tokens: llmOutputTokens,
     transcribe_input_tokens: transcribed.inputTokens,
@@ -593,6 +608,15 @@ async function conversation(
   });
   if (updateError) throw updateError;
 
+  const { error: languageUpdateError } = await supabase
+    .from("app_users")
+    .update({
+      last_practice_language: requestedLanguage,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("firebase_uid", profile.firebase_uid);
+  if (languageUpdateError) throw languageUpdateError;
+
   return json({
     transcript,
     reply: tutor.reply,
@@ -607,6 +631,7 @@ async function conversation(
     audioBase64: audio.audioBase64,
     suggestedReply: tutor.level === "A1" ? tutor.suggested_reply : null,
     topic: tutor.topic,
+    practiceLanguage: requestedLanguage,
   });
 }
 
