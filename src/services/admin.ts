@@ -11,6 +11,14 @@ export type AdminUser = {
   totalTurns?: number;
   trialEndsAt?: string | null;
   createdAt?: string | null;
+  monthlyPriceOverrideUsd?: number | null;
+  monthlyPriceNote?: string;
+  lastPracticeLanguage?: 'en' | 'es' | 'fr';
+};
+
+export type AdminLanguageUsage = {
+  turns: number;
+  costUsd: number;
 };
 
 export type AdminCostUser = {
@@ -22,14 +30,39 @@ export type AdminCostUser = {
   speakingMinutes: number;
   aiCostUsd: number;
   avgCostPerTurnUsd: number;
-  projectedNormalMonthlyUsd: number;
+  currentMonthTurns: number;
+  currentMonthAiCostUsd: number;
+  projectedMonthlyAiCostUsd: number;
+  suggestedMonthlyPriceUsd: number;
+  monthlyPriceOverrideUsd?: number | null;
+  monthlyPriceNote?: string;
+  effectiveMonthlyPriceUsd: number;
+  effectiveMonthlyPriceBob?: number | null;
   activeDays: number;
+  currentMonthActiveDays: number;
+  languages: {
+    en: AdminLanguageUsage;
+    es: AdminLanguageUsage;
+    fr: AdminLanguageUsage;
+  };
+};
+
+export type AdminInvestment = {
+  id: string;
+  provider: string;
+  amountUsd: number;
+  exchangeRateBobPerUsd?: number | null;
+  amountBob?: number | null;
+  purchasedAt: string;
+  note: string;
 };
 
 export type AdminAnalytics = {
+  month: string;
   sampleUsers: number;
   totalTurns: number;
   totalAiCostUsd: number;
+  currentMonthAiCostUsd: number;
   averageCostPerTurnUsd: number;
   averageCostPerUserObservedUsd: number;
   scenarios: {
@@ -41,10 +74,27 @@ export type AdminAnalytics = {
   budget100UsersUsd: number;
   safetyBufferPercent: number;
   referenceMarkup: number;
+  settings: {
+    exchangeRateBobPerUsd?: number | null;
+    pricingMarkup: number;
+    safetyBufferPercent: number;
+    normalTurnsPerDay: number;
+  };
+  investments: AdminInvestment[];
+  investmentSummary: {
+    totalInvestedUsd: number;
+    totalInvestedBob: number;
+    estimatedRemainingUsd: number;
+  };
   breakdown: {
     transcribeUsd: number;
     llmUsd: number;
     ttsUsd: number;
+  };
+  languageTotals: {
+    en: AdminLanguageUsage;
+    es: AdminLanguageUsage;
+    fr: AdminLanguageUsage;
   };
   perUser: AdminCostUser[];
   rateVersion: string;
@@ -68,5 +118,36 @@ export async function setUserAccess(
   return callBackend('adminSetAccess', {
     targetUid,
     subscriptionStatus,
+  });
+}
+
+export async function updateBusinessSettings(input: {
+  exchangeRateBobPerUsd?: number | null;
+  pricingMarkup: number;
+  safetyBufferPercent: number;
+  normalTurnsPerDay: number;
+}) {
+  return callBackend('adminUpdateBusinessSettings', input);
+}
+
+export async function addAiInvestment(input: {
+  amountUsd: number;
+  exchangeRateBobPerUsd?: number | null;
+  provider?: string;
+  purchasedAt?: string;
+  note?: string;
+}) {
+  return callBackend('adminAddInvestment', input);
+}
+
+export async function setUserMonthlyPrice(
+  targetUid: string,
+  monthlyPriceOverrideUsd: number | null,
+  note = '',
+) {
+  return callBackend('adminSetUserPrice', {
+    targetUid,
+    monthlyPriceOverrideUsd,
+    note,
   });
 }
