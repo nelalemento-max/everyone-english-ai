@@ -6,6 +6,17 @@ const FIREBASE_PROJECT_ID = "everyone-english-ai";
 const ADMIN_EMAIL = "nelalemento@gmail.com";
 const TRIAL_HOURS = 48;
 
+const AI_COST_RATES = {
+  llmInputPerMillion: 0.20,
+  llmOutputPerMillion: 1.20,
+  transcribeInputPerMillion: 1.25,
+  transcribeOutputPerMillion: 5.00,
+  transcribePerMinuteFallback: 0.003,
+  ttsInputPerMillion: 0.60,
+  ttsAudioOutputPerMillion: 12.00,
+  rateVersion: "2026-09-21",
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, content-type",
@@ -240,35 +251,30 @@ async function transcribe(apiKey: string, audioBase64: string, mimeType: string)
   const bytes = Uint8Array.from(atob(audioBase64), (char) => char.charCodeAt(0));
   const form = new FormData();
   const extension = mimeType.includes("webm") ? "webm" : "m4a";
-
-  form.append(
-    "file",
-    new Blob([bytes], { type: mimeType }),
-    `learner.${extension}`,
-  );
+  form.append("file", new Blob([bytes], { type: mimeType }), `learner.${extension}`);
   form.append("model", "gpt-4o-mini-transcribe");
   form.append("language", "en");
-  form.append(
-    "prompt",
-    "English learner conversation. Keep imperfect learner wording when audible.",
-  );
+  form.append("prompt", "English learner conversation. Keep imperfect learner wording when audible.");
 
   const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
     body: form,
   });
-
   if (!response.ok) {
     const message = await response.text();
     throw new Error(`OPENAI_TRANSCRIBE_${response.status}: ${message.slice(0, 400)}`);
   }
-
   const result = await response.json();
-  return String(result.text ?? "").trim();
+  return {
+    text: String(result.text ?? "").trim(),
+    inputTokens: Number(result?.usage?.input_tokens ?? 0),
+    outputTokens: Number(result?.usage?.output_tokens ?? 0),
+  };
 }
 
 async function synthesize(apiKey: string, text: string, level: string) {
+  const speed = level === "A1" ? 0.82 : level === "A2" ? 0.92 : 1;
   const response = await fetch("https://api.openai.com/v1/audio/speech", {
     method: "POST",
     headers: {
@@ -280,14 +286,13 @@ async function synthesize(apiKey: string, text: string, level: string) {
       voice: "coral",
       input: text.slice(0, 1600),
       response_format: "mp3",
-      speed: level === "A1" ? 0.82 : level === "A2" ? 0.92 : 1,
+      speed,
       instructions:
         level === "A1"
           ? "Warm, patient English tutor for a beginner. Speak clearly and a little slowly, with natural short pauses. Use simple pronunciation and sound encouraging, not robotic."
           : "Warm, patient English conversation coach. Clear pronunciation, friendly and natural, never robotic.",
     }),
   });
-
   if (!response.ok) {
     const message = await response.text();
     throw new Error(`OPENAI_TTS_${response.status}: ${message.slice(0, 400)}`);
@@ -299,7 +304,16 @@ async function synthesize(apiKey: string, text: string, level: string) {
   for (let i = 0; i < bytes.length; i += chunk) {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
   }
-  return btoa(binary);
+
+  const words = Math.max(1, text.trim().split(/\s+/).filter(Boolean).length);
+  const estimatedSeconds = words / (2.5 * speed);
+  const inputTokensEst = Math.max(1, Math.ceil(text.length / 4));
+  const audioTokensEst = Math.max(1, Math.ceil(estimatedSeconds * 20));
+  const estimatedCostUsd =
+    (inputTokensEst * AI_COST_RATES.ttsInputPerMillion / 1_000_000) +
+    (audioTokensEst * AI_COST_RATES.ttsAudioOutputPerMillion / 1_000_000);
+
+  return { audioBase64: btoa(binary), inputTokensEst, audioTokensEst, estimatedCostUsd };
 }
 
 function extractResponseText(payload: any) {
@@ -369,6 +383,8 @@ Rules:
 - If the learner is already natural, correction must be null.
 - explanation_es and tip_es are brief Spanish support.
 - If the learner uses Spanish because they do not know the English phrase, teach it and invite them to try it.
+- If the learner says they are tired of the topic, asks to change topic, or says "change the topic", immediately switch to a DIFFERENT practical topic, ask a fresh question, and set the JSON topic field to the new topic.
+- Preferred topic names: My day, Work, Travel, Family, Business, Food, Hobbies, Shopping, Plans, Anything.
 - Never scold, grade, or make the learner feel tested.
 - For A1 learners, suggested_reply MUST contain one short, natural example answer the learner can say next, directly answering your final question. Keep it 3 to 10 simple words.
 - For A2 or B1, suggested_reply should normally be null unless the learner explicitly asks for an example.
@@ -472,7 +488,10 @@ async function conversation(
     );
   }
 
-  const transcript = typedText || await transcribe(apiKey, audioBase64, mimeType);
+  const transcribed = typedText
+    ? { text: typedText, inputTokens: 0, outputTokens: 0 }
+    : await transcribe(apiKey, audioBase64, mimeType);
+  const transcript = transcribed.text;
   if (!transcript) {
     return json(
       { error: "no_speech", message: "No pude escuchar palabras. Intenta nuevamente." },
@@ -482,13 +501,15 @@ async function conversation(
 
   const { data: recentRows, error: recentError } = await supabase
     .from("conversation_turns")
-    .select("transcript, reply, created_at")
+    .select("transcript, reply, topic, created_at")
     .eq("firebase_uid", profile.firebase_uid)
     .order("created_at", { ascending: false })
-    .limit(6);
+    .limit(10);
   if (recentError) throw recentError;
 
   const recent = (recentRows ?? [])
+    .filter((row: any) => requestedTopic === "Anything" || row.topic === requestedTopic)
+    .slice(0, 6)
     .reverse()
     .map((row: any) => `Learner: ${row.transcript}\nEmma: ${row.reply}`)
     .join("\n\n");
@@ -515,7 +536,27 @@ async function conversation(
     requestedLevel,
     requestedTopic,
   );
+
+  const measuredLlmInput = Number(response?.usage?.input_tokens ?? 0);
+  const measuredLlmOutput = Number(response?.usage?.output_tokens ?? 0);
+  const llmInputTokens = measuredLlmInput || Math.max(1, Math.ceil((tutorInstructions.length + recent.length + transcript.length) / 4));
+  const llmOutputTokens = measuredLlmOutput || Math.max(1, Math.ceil((tutor.reply.length + tutor.tip_es.length + (tutor.explanation_es?.length ?? 0)) / 4));
+  const llmCostUsd =
+    (llmInputTokens * AI_COST_RATES.llmInputPerMillion / 1_000_000) +
+    (llmOutputTokens * AI_COST_RATES.llmOutputPerMillion / 1_000_000);
+
+  const transcribeMeasured = transcribed.inputTokens > 0 || transcribed.outputTokens > 0;
+  const transcribeCostUsd = typedText
+    ? 0
+    : transcribeMeasured
+      ? (
+          transcribed.inputTokens * AI_COST_RATES.transcribeInputPerMillion / 1_000_000 +
+          transcribed.outputTokens * AI_COST_RATES.transcribeOutputPerMillion / 1_000_000
+        )
+      : (seconds / 60) * AI_COST_RATES.transcribePerMinuteFallback;
+
   const audio = await synthesize(apiKey, tutor.reply, tutor.level);
+  const totalAiCostUsd = llmCostUsd + transcribeCostUsd + audio.estimatedCostUsd;
 
   const { error: turnError } = await supabase.from("conversation_turns").insert({
     firebase_uid: profile.firebase_uid,
@@ -528,6 +569,18 @@ async function conversation(
     topic: tutor.topic,
     new_words: tutor.new_words,
     seconds,
+    llm_input_tokens: llmInputTokens,
+    llm_output_tokens: llmOutputTokens,
+    transcribe_input_tokens: transcribed.inputTokens,
+    transcribe_output_tokens: transcribed.outputTokens,
+    tts_input_tokens_est: audio.inputTokensEst,
+    tts_audio_tokens_est: audio.audioTokensEst,
+    transcribe_cost_usd: Number(transcribeCostUsd.toFixed(6)),
+    llm_cost_usd: Number(llmCostUsd.toFixed(6)),
+    tts_cost_usd: Number(audio.estimatedCostUsd.toFixed(6)),
+    ai_cost_usd: Number(totalAiCostUsd.toFixed(6)),
+    cost_estimated: true,
+    cost_rate_version: AI_COST_RATES.rateVersion,
   });
   if (turnError) throw turnError;
 
@@ -551,9 +604,102 @@ async function conversation(
       word: item.word,
       meaningEs: item.meaning_es,
     })),
-    audioBase64: audio,
+    audioBase64: audio.audioBase64,
     suggestedReply: tutor.level === "A1" ? tutor.suggested_reply : null,
+    topic: tutor.topic,
   });
+}
+
+
+async function buildAdminAnalytics(supabase: ReturnType<typeof adminClient>) {
+  const [{ data: users, error: usersError }, { data: turns, error: turnsError }] =
+    await Promise.all([
+      supabase.from("app_users")
+        .select("firebase_uid, display_name, role, subscription_status")
+        .limit(500),
+      supabase.from("conversation_turns")
+        .select("firebase_uid, seconds, ai_cost_usd, transcribe_cost_usd, llm_cost_usd, tts_cost_usd, cost_estimated, created_at")
+        .order("created_at", { ascending: false })
+        .limit(10000),
+    ]);
+  if (usersError) throw usersError;
+  if (turnsError) throw turnsError;
+
+  const stats = new Map<string, any>();
+  for (const user of users ?? []) {
+    stats.set(user.firebase_uid, {
+      id: user.firebase_uid,
+      displayName: user.display_name || "Sin nombre",
+      role: user.role,
+      subscriptionStatus: user.subscription_status,
+      turns: 0,
+      speakingSeconds: 0,
+      aiCostUsd: 0,
+      activeDays: new Set<string>(),
+    });
+  }
+
+  let transcribeUsd = 0;
+  let llmUsd = 0;
+  let ttsUsd = 0;
+  for (const turn of turns ?? []) {
+    const row = stats.get(turn.firebase_uid);
+    if (!row) continue;
+    row.turns += 1;
+    row.speakingSeconds += Number(turn.seconds || 0);
+    row.aiCostUsd += Number(turn.ai_cost_usd || 0);
+    if (turn.created_at) row.activeDays.add(String(turn.created_at).slice(0, 10));
+    transcribeUsd += Number(turn.transcribe_cost_usd || 0);
+    llmUsd += Number(turn.llm_cost_usd || 0);
+    ttsUsd += Number(turn.tts_cost_usd || 0);
+  }
+
+  const perUser = Array.from(stats.values())
+    .filter((row) => row.turns > 0)
+    .map((row) => {
+      const avgCostPerTurnUsd = row.turns ? row.aiCostUsd / row.turns : 0;
+      return {
+        id: row.id,
+        displayName: row.displayName,
+        role: row.role,
+        subscriptionStatus: row.subscriptionStatus,
+        turns: row.turns,
+        speakingMinutes: row.speakingSeconds / 60,
+        aiCostUsd: row.aiCostUsd,
+        avgCostPerTurnUsd,
+        projectedNormalMonthlyUsd: avgCostPerTurnUsd * 25 * 30,
+        activeDays: row.activeDays.size,
+      };
+    })
+    .sort((a, b) => b.aiCostUsd - a.aiCostUsd);
+
+  const totalTurns = perUser.reduce((sum, row) => sum + row.turns, 0);
+  const totalAiCostUsd = perUser.reduce((sum, row) => sum + row.aiCostUsd, 0);
+  const averageCostPerTurnUsd = totalTurns ? totalAiCostUsd / totalTurns : 0;
+  const lightMonthlyUsd = averageCostPerTurnUsd * 10 * 30;
+  const normalMonthlyUsd = averageCostPerTurnUsd * 25 * 30;
+  const intensiveMonthlyUsd = averageCostPerTurnUsd * 50 * 30;
+
+  return {
+    sampleUsers: perUser.length,
+    totalTurns,
+    totalAiCostUsd,
+    averageCostPerTurnUsd,
+    averageCostPerUserObservedUsd: perUser.length ? totalAiCostUsd / perUser.length : 0,
+    scenarios: {
+      lightMonthlyUsd,
+      normalMonthlyUsd,
+      intensiveMonthlyUsd,
+    },
+    referenceMonthlyPriceUsd: normalMonthlyUsd * 4,
+    budget100UsersUsd: normalMonthlyUsd * 100 * 1.25,
+    safetyBufferPercent: 25,
+    referenceMarkup: 4,
+    breakdown: { transcribeUsd, llmUsd, ttsUsd },
+    perUser,
+    rateVersion: AI_COST_RATES.rateVersion,
+    note: "Estimación de costo variable de IA. TTS se atribuye por duración estimada; no incluye impuestos, pasarela de pago, soporte, marketing ni otros costos del negocio.",
+  };
 }
 
 Deno.serve(async (req: Request) => {
@@ -583,6 +729,11 @@ Deno.serve(async (req: Request) => {
 
     if (action === "conversation") {
       return await conversation(supabase, profile, body);
+    }
+
+    if (action === "adminAnalytics") {
+      if (profile.role !== "admin") return json({ error: "forbidden" }, 403);
+      return json({ analytics: await buildAdminAnalytics(supabase) });
     }
 
     if (action === "adminList") {
