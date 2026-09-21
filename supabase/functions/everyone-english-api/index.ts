@@ -910,6 +910,118 @@ Deno.serve(async (req: Request) => {
       return json({ analytics: await buildAdminAnalytics(supabase) });
     }
 
+    if (action === "adminUpdateBusinessSettings") {
+      if (profile.role !== "admin") return json({ error: "forbidden" }, 403);
+
+      const exchangeRateRaw = body.exchangeRateBobPerUsd;
+      const exchangeRate =
+        exchangeRateRaw === null || exchangeRateRaw === "" || exchangeRateRaw === undefined
+          ? null
+          : Number(exchangeRateRaw);
+      const pricingMarkup = Number(body.pricingMarkup ?? 4);
+      const safetyBufferPercent = Number(body.safetyBufferPercent ?? 25);
+      const normalTurnsPerDay = Number(body.normalTurnsPerDay ?? 25);
+
+      if (
+        (exchangeRate !== null && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) ||
+        !Number.isFinite(pricingMarkup) || pricingMarkup < 1 || pricingMarkup > 20 ||
+        !Number.isFinite(safetyBufferPercent) || safetyBufferPercent < 0 || safetyBufferPercent > 500 ||
+        !Number.isFinite(normalTurnsPerDay) || normalTurnsPerDay < 1 || normalTurnsPerDay > 500
+      ) {
+        return json({ error: "invalid_business_settings" }, 400);
+      }
+
+      const { error } = await supabase
+        .from("business_settings")
+        .upsert({
+          id: 1,
+          exchange_rate_bob_per_usd: exchangeRate,
+          pricing_markup: pricingMarkup,
+          safety_buffer_percent: safetyBufferPercent,
+          normal_turns_per_day: Math.round(normalTurnsPerDay),
+          updated_at: new Date().toISOString(),
+          updated_by: profile.firebase_uid,
+        }, { onConflict: "id" });
+      if (error) throw error;
+
+      return json({ ok: true });
+    }
+
+    if (action === "adminAddInvestment") {
+      if (profile.role !== "admin") return json({ error: "forbidden" }, 403);
+
+      const amountUsd = Number(body.amountUsd || 0);
+      const exchangeRateRaw = body.exchangeRateBobPerUsd;
+      const exchangeRate =
+        exchangeRateRaw === null || exchangeRateRaw === "" || exchangeRateRaw === undefined
+          ? null
+          : Number(exchangeRateRaw);
+      const provider =
+        typeof body.provider === "string" && body.provider.trim()
+          ? body.provider.trim().slice(0, 80)
+          : "OpenAI";
+      const note =
+        typeof body.note === "string" ? body.note.trim().slice(0, 300) : "";
+      const purchasedAt =
+        typeof body.purchasedAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.purchasedAt)
+          ? body.purchasedAt
+          : new Date().toISOString().slice(0, 10);
+
+      if (
+        !Number.isFinite(amountUsd) || amountUsd <= 0 ||
+        (exchangeRate !== null && (!Number.isFinite(exchangeRate) || exchangeRate <= 0))
+      ) {
+        return json({ error: "invalid_investment" }, 400);
+      }
+
+      const amountBob = exchangeRate === null ? null : amountUsd * exchangeRate;
+      const { error } = await supabase.from("ai_investments").insert({
+        provider,
+        amount_usd: amountUsd,
+        exchange_rate_bob_per_usd: exchangeRate,
+        amount_bob: amountBob,
+        purchased_at: purchasedAt,
+        note,
+        created_by: profile.firebase_uid,
+      });
+      if (error) throw error;
+
+      return json({ ok: true });
+    }
+
+    if (action === "adminSetUserPrice") {
+      if (profile.role !== "admin") return json({ error: "forbidden" }, 403);
+
+      const targetUid = typeof body.targetUid === "string" ? body.targetUid.trim() : "";
+      const priceRaw = body.monthlyPriceOverrideUsd;
+      const monthlyPriceOverrideUsd =
+        priceRaw === null || priceRaw === "" || priceRaw === undefined
+          ? null
+          : Number(priceRaw);
+      const note =
+        typeof body.note === "string" ? body.note.trim().slice(0, 250) : "";
+
+      if (
+        !targetUid ||
+        (monthlyPriceOverrideUsd !== null &&
+          (!Number.isFinite(monthlyPriceOverrideUsd) || monthlyPriceOverrideUsd < 0))
+      ) {
+        return json({ error: "invalid_user_price" }, 400);
+      }
+
+      const { error } = await supabase
+        .from("app_users")
+        .update({
+          monthly_price_override_usd: monthlyPriceOverrideUsd,
+          monthly_price_note: note,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("firebase_uid", targetUid);
+      if (error) throw error;
+
+      return json({ ok: true });
+    }
+
     if (action === "adminList") {
       if (profile.role !== "admin") {
         return json({ error: "forbidden" }, 403);
@@ -933,6 +1045,12 @@ Deno.serve(async (req: Request) => {
           totalTurns: Number(row.total_turns || 0),
           trialEndsAt: row.trial_ends_at,
           createdAt: row.created_at,
+          monthlyPriceOverrideUsd:
+            row.monthly_price_override_usd == null
+              ? null
+              : Number(row.monthly_price_override_usd),
+          monthlyPriceNote: row.monthly_price_note || "",
+          lastPracticeLanguage: row.last_practice_language || "en",
         })),
       });
     }
